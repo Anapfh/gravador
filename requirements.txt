@@ -1,0 +1,28 @@
+# =========================
+# Audio capture
+# =========================
+sounddevice
+soundfile
+numpy
+
+# =========================
+# ASR (offline)
+# =========================
+faster-whisper
+huggingface_hub
+
+# =========================
+# Config / Parsing
+# =========================
+tomli
+
+# =========================
+# Interface
+# =========================
+streamlit
+
+# =========================
+# LLM local (saídas derivadas)
+# =========================
+ollama
+

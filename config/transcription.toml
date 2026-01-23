@@ -1,0 +1,64 @@
+# ======================================================
+# Configuração de Transcrição
+# ======================================================
+
+[transcription]
+engine = "whisper"
+
+# ======================================================
+# Alucinação
+# ======================================================
+
+[transcription.hallucination]
+enabled = true
+
+# Detecção GLOBAL
+global_min_words = 60
+global_unique_ratio_threshold = 0.25
+global_most_common_ratio_threshold = 0.25
+
+# Detecção LOCAL (cauda)
+min_words = 120
+window = 100
+unique_ratio_threshold = 0.20
+most_common_ratio_threshold = 0.20
+
+
+# ======================================================
+# Oralidade
+# ======================================================
+
+[transcription.orality]
+enabled = true
+terms = [
+  "né",
+  "tipo",
+  "então",
+  "é",
+  "éé",
+  "aham",
+  "hum",
+  "tá",
+  "tá bom"
+]
+
+
+# ======================================================
+# Repetição
+# ======================================================
+
+[transcription.repetition]
+enabled = true
+max_consecutive = 1
+# ======================================================
+# Captura de áudio (CLI)
+# ======================================================
+
+[transcription.audio]
+# Dispositivo de entrada:
+# 10 = Mixagem estéreo (Realtek HD Audio)
+# 11 = Microfone (Realtek HD Audio Mic)
+input_device_index = 11
+sample_rate = 16000
+channels = 1
+

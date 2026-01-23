@@ -1,0 +1,7 @@
+[transcription]
+model_size = "medium"   # small | medium | large-v3
+device = "cpu"          # cpu | cuda
+compute_type = "int8"   # int8 | float16 | float32
+
+[paths]
+base_output = "output"

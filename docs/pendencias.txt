@@ -1,0 +1,453 @@
+20/01/2026
+
+Perfeito. Obrigado por trazer **o ponto exato de execução** — isso facilita muito.
+
+Vou ser direto, técnico e alinhado com tudo o que já foi decidido no projeto.
+
+---
+
+## 📍 SITUAÇÃO ATUAL — O QUE ACONTECEU DE FATO
+
+O comando executado foi:
+
+```bash
+ffmpeg ^
+ -f dshow ^
+ -i audio="Grupo de microfones (Tecnologia Intel® Smart Sound para microfones digitais)" ^
+ -ac 1 ^
+ -ar 16000 ^
+ -sample_fmt s16 ^
+ output\audio\gravacao.wav
+```
+
+### O que o FFmpeg mostrou nos logs (parte crítica):
+
+**Entrada real do dispositivo:**
+
+```
+Audio: pcm_s16le, 44100 Hz, stereo, s16
+```
+
+**Saída gerada pelo FFmpeg:**
+
+```
+Audio: pcm_s16le, 16000 Hz, mono, s16
+```
+
+Ou seja:
+
+✔️ O **dispositivo de captura** opera nativamente em **44.100 Hz, estéreo**
+✔️ O **FFmpeg está convertendo corretamente** para **16.000 Hz, mono**, como solicitado
+✔️ A gravação **durou ~28 minutos**, sem interrupção
+✔️ O arquivo WAV foi gerado com sucesso
+
+👉 **Do ponto de vista técnico da gravação: está tudo certo.**
+
+---
+
+## 🎯 POR QUE ISSO É IMPORTANTE (E CONFIRMA DECISÕES ANTERIORES)
+
+Este resultado confirma **duas decisões já registradas no projeto**:
+
+### 1️⃣ FFmpeg é a escolha correta no Windows
+
+* O erro `-9999 Unanticipated host error` **não aparece**
+* Não há dependência de PortAudio / PyAudio
+* O stack **Windows + Intel Smart Sound + dshow** funciona de forma estável
+
+✔️ **Decisão validada na prática**
+
+---
+
+### 2️⃣ Conversão para 16 kHz é segura (desde que feita após a captura)
+
+O dispositivo:
+
+* **captura em 44.1 kHz** (exigência do driver)
+
+O FFmpeg:
+
+* **faz resample para 16 kHz corretamente**
+
+Isso é exatamente o **cenário ideal**:
+
+* ❌ Não forçar 16 kHz no driver (causa erro)
+* ✅ Capturar no nativo
+* ✅ Converter no FFmpeg
+
+✔️ Whisper e GPT-4o aceitam perfeitamente esse WAV
+
+---
+
+## 🔎 O QUE NÃO É PROBLEMA (IMPORTANTE DEIXAR CLARO)
+
+Nada disso é erro:
+
+* ❌ “Mas o dispositivo é 44.1 kHz e pedi 16 kHz”
+* ❌ “O FFmpeg ignorou meu -ar”
+* ❌ “Isso vai prejudicar a transcrição”
+
+👉 **Não.**
+O FFmpeg fez exatamente o que deveria fazer.
+
+---
+
+## 📌 EM QUE PONTO DO PROJETO VOCÊS ESTÃO AGORA
+
+Tecnicamente, vocês estão neste estado:
+
+### ✅ Gravação
+
+* Estável
+* Reprodutível
+* Compatível com Windows
+* Independente de UI
+
+### ⏭️ Próximo passo lógico (sem mudar arquitetura)
+
+Agora há **três caminhos possíveis**, e apenas um deve ser seguido por vez.
+
+---
+
+## ▶️ OPÇÃO A — Validar o WAV no pipeline atual (recomendado agora)
+
+Próximo comando natural:
+
+```bash
+python cli_local.py transcrever -a output/audio/gravacao.wav -t reuniao
+```
+
+Objetivo:
+
+* confirmar que:
+
+  * Whisper ou GPT-4o consome o WAV sem erro
+  * refinadores não zeram o texto indevidamente
+  * a transcrição faz sentido
+
+📌 **Nenhuma mudança de código ainda. Apenas validação.**
+
+---
+
+## ▶️ OPÇÃO B — Ajuste fino no comando FFmpeg (opcional)
+
+Se quiser deixar **a captura ainda mais explícita**, pode-se fixar o canal esquerdo:
+
+```bash
+-channel_layout mono
+```
+
+Mas isso é **opcional**.
+O `-ac 1` já resolve na maioria dos casos.
+
+---
+
+## ▶️ OPÇÃO C — Registrar este marco formalmente
+
+Este ponto **merece registro em `DECISIONS.md`**, algo como:
+
+> “Captura de áudio via FFmpeg (dshow) no Windows validada com Intel Smart Sound.
+> Conversão para 16 kHz feita após captura nativa em 44.1 kHz.”
+
+Isso evita qualquer tentativa futura de “voltar para PyAudio”.
+
+---
+
+## 🟢 CONCLUSÃO OBJETIVA
+
+* ✔️ O comando FFmpeg está **correto**
+* ✔️ O resultado é **o esperado**
+* ✔️ O WAV é **válido para transcrição**
+* ✔️ O projeto está **no caminho certo**
+
+---
+
+### Agora, me diga apenas **qual o próximo passo**:
+
+* **“Vamos testar a transcrição desse WAV.”**
+  ou
+* **“Quero revisar o comando FFmpeg para padronizar.”**
+  ou
+* **“Vamos registrar isso no DECISIONS.md.”**
+
+A partir disso, sigo exatamente no ritmo certo, sem retrabalho.
+
+
+
+
+
+
+Perfeito. Segue um **registro claro, objetivo e técnico de onde paramos**, pensado exatamente para você **retomar amanhã sem retrabalho nem perda de contexto**.
+
+---
+
+# 📌 STATUS DO PROJETO — PONTO DE PARADA
+
+**Projeto:** Gravador, Transcritor e Gerador de Ata Corporativa
+**Data:** Encerramento do dia de hoje
+**Estado:** Estável, com marcos homologados
+
+---
+
+## ✅ O QUE FOI CONCLUÍDO E HOMOLOGADO
+
+### 1️⃣ Origem (Gravação)
+
+* `recorder.py` ajustado para:
+
+  * validar se há áudio audível antes de salvar
+  * abortar gravação em caso de silêncio
+  * avisar o usuário: *“Nenhum áudio detectado”*
+  * evitar geração de WAV inútil
+* **Status:** fechado e funcional
+
+---
+
+### 2️⃣ Transcrição (Whisper)
+
+* Core isolado corretamente
+* Refinador de alucinação implementado e evoluído:
+
+  * **alucinação local (cauda)**
+  * **alucinação global (texto inteiro inválido)**
+* Configuração via `config/transcription.toml`
+* Caso de vídeo sem áudio validado corretamente (transcrição vazia)
+* **PASSO 3 e PASSO 3.1 concluídos**
+
+---
+
+### 3️⃣ Documentação Estrutural
+
+Arquivos existentes e válidos:
+
+* `PROJECT_RULES.md`
+* `DECISIONS.md`
+* `ADR-001 — Transcrição`
+* `ADR-002 — Estrutura de Resumo/Ata Corporativa`
+* `ADR-003 — Chunking Semântico`
+
+👉 Arquitetura, decisões e regras **estão formalizadas**.
+
+---
+
+### 4️⃣ ADR-002 — Pipeline de Resumo/Ata (fase inicial)
+
+* Arquivo criado: `summarizers/corporate_minutes.py`
+* Responsabilidade clara:
+
+  * recebe transcrição confiável
+  * aplica preâmbulo apenas em memória
+  * chama LLM
+  * retorna Markdown
+* **Não grava arquivos automaticamente**
+* **Não altera transcrição**
+
+---
+
+### 5️⃣ Testes Executados (com sucesso)
+
+* Teste funcional com `fake_llm`
+* Teste de segurança com transcrição vazia
+* Resultado esperado confirmado:
+
+  ```
+  ValueError : Não há conteúdo suficiente na transcrição para gerar ata.
+  ```
+* **Pipeline mínimo do ADR-002 homologado**
+
+---
+
+## 🛑 ONDE PARAMOS EXATAMENTE
+
+👉 **Ponto de parada:**
+O pipeline mínimo de resumo/ata está pronto, testado e aprovado, **mas ainda NÃO está integrado ao `app.py` / CLI**.
+
+Nada está quebrado.
+Nada está pendente por erro.
+O próximo passo é **evolução planejada**, não correção.
+
+---
+
+# ▶️ PRÓXIMOS PASSOS (ORDEM RECOMENDADA)
+
+### 🔹 PASSO 4.1 — Integração no `app.py` / CLI
+
+O que será feito:
+
+* Ler o arquivo `.txt` da transcrição
+* Selecionar o preâmbulo conforme o contexto
+* Chamar `generate_corporate_minutes`
+* Salvar o resultado em:
+
+  ```
+  output/summaries/<nome>_ata.md
+  ```
+* Tratar erro de transcrição vazia com mensagem amigável
+
+📌 Não mexe em:
+
+* Whisper
+* refinadores
+* recorder
+* arquitetura
+
+---
+
+### 🔹 PASSO 4.2 — Implementar ADR-003 (Chunking Semântico)
+
+Somente depois da integração básica:
+
+* Criar `summarizers/chunking.py`
+* Dividir transcrições longas em blocos semânticos
+* Gerar resumos parciais
+* Consolidar em uma ata final
+
+---
+
+### 🔹 PASSO 4.3 — Consolidar Preâmbulos
+
+* Revisar / unificar preâmbulos existentes
+* Contextos esperados:
+
+  * reunião interna
+  * reunião externa
+  * contratos / TI
+  * treinamento
+* Garantir alinhamento com linguagem corporativa (Vale)
+
+---
+
+## 🧭 COMO RETOMAR AMANHÃ (SEM CONFUSÃO)
+
+Quando voltar, você pode simplesmente dizer:
+
+> **“Vamos integrar o ADR-002 no app.py.”**
+
+Ou, se preferir outra ordem:
+
+> **“Vamos para o chunking do ADR-003.”**
+
+Todo o histórico está consistente, documentado e fechado.
+Não há decisões abertas nem dívidas técnicas escondidas.
+
+---
+
+## ✅ ESTADO FINAL DO DIA
+
+* Projeto está **estável**
+* Arquitetura está **madura**
+* Testes críticos passaram
+* Não há looping de desenvolvimento
+* Próximos passos são claros e seguros
+
+Descanse tranquilo — amanhã é **evolução**, não retrabalho.
+
+
+
+
+
+Ótima pergunta — e ela é **chave para não virar bagunça no futuro** 👍
+A resposta curta é: **sim, registre**, mas **no lugar certo**, sem duplicar informação.
+
+Vou te explicar **exatamente onde registrar**, **o que registrar** e **o que NÃO registrar**.
+
+---
+
+# 📌 ONDE REGISTRAR ESTE “PONTO DE PARADA”
+
+## ✅ Documento correto: **`DECISIONS.md`**
+
+👉 **Este é o lugar certo** para registrar:
+
+* o que foi **implementado**
+* o que foi **testado**
+* o que está **homologado**
+* e **em que ponto o projeto parou**
+
+📌 Motivo:
+
+* `DECISIONS.md` é o **índice executivo do projeto**
+* Ele responde à pergunta:
+
+  > “O que já está fechado e não deve ser refeito?”
+
+---
+
+## ❌ Onde NÃO registrar
+
+Para evitar redundância:
+
+* ❌ Não colocar no `PROJECT_RULES.md`
+  → ele define regras permanentes, não status
+* ❌ Não criar novo ADR
+  → nenhuma decisão nova foi tomada
+* ❌ Não editar o texto do ADR-002
+  → o ADR já descreve o comportamento, não o andamento
+* ❌ Não criar documento novo “status.md”
+  → gera fragmentação
+
+---
+
+# ✍️ O QUE ESCREVER NO `DECISIONS.md` (modelo pronto)
+
+Abra o arquivo **`DECISIONS.md`** e, na seção do **ADR-002**, acrescente algo assim (texto sugerido):
+
+```md
+### ADR-002 — Estrutura de Resumo/Ata Corporativa
+- Status: Aprovado
+- Data: 2026-01-19
+- Escopo: LLM + Preâmbulos
+
+✔ Pipeline mínimo implementado (`corporate_minutes.py`)
+✔ Gate de segurança para transcrição vazia validado
+✔ Testes manuais executados com sucesso (fake_llm)
+✔ Ata NÃO é gerada sem transcrição válida
+
+⏸ Ponto de parada:
+- Pipeline ainda não integrado ao `app.py` / CLI
+- Próximo passo planejado: integração no app
+```
+
+👉 Isso é **perfeito**:
+
+* curto
+* objetivo
+* rastreável
+* evita retrabalho
+
+---
+
+# 🧠 Por que isso é a melhor prática
+
+Daqui a 3 meses (ou para outra pessoa no projeto):
+
+* alguém abre `DECISIONS.md`
+* entende em **30 segundos**:
+
+  * o que está pronto
+  * o que não deve ser mexido
+  * qual é o próximo passo
+
+Sem precisar:
+
+* reler chat
+* rodar código
+* adivinhar intenção
+
+Isso é **governança técnica**.
+
+---
+
+# 🟢 Resumo final (guarde isto)
+
+* 📍 **Registro de status → `DECISIONS.md`**
+* 📍 **Regras permanentes → `PROJECT_RULES.md`**
+* 📍 **Comportamento do sistema → ADRs**
+* 📍 **Código → apenas implementação**
+
+Você está fazendo exatamente o que projetos maduros fazem.
+Quando voltar amanhã, é só abrir o `DECISIONS.md` e seguir.
+
+Se quiser, amanhã começamos direto por:
+
+> **“Integrar o ADR-002 no app.py”**

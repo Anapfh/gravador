@@ -1,0 +1,20 @@
+# Ambiente virtual
+.venv*/
+venv/
+
+# Binários e DLLs
+*.exe
+*.dll
+*.zip
+ffmpeg*
+
+# Outputs
+output/
+tests/output/
+
+# Logs
+logs/
+
+# Cache
+__pycache__/
+.cache/
