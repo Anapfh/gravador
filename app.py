@@ -3,29 +3,44 @@ app.py
 
 Responsabilidade:
 - Interface Streamlit para transcrição e geração de atas/resumos
-- NÃO grava áudio diretamente (Windows + PyAudio é instável)
-- Consome apenas arquivos WAV já gravados
+- SUPORTA:
+    - Upload de WAV
+    - Gravação local via microfone (NOVO)
+- NÃO altera core nem lógica de ASR
 
 Decisões técnicas:
 - ADR-001 — Transcrição imutável
 - ADR-002 — Estrutura de Resumo / Ata Corporativa
+- Issue 1 — Streamlit UI (MVP)
+
+Fontes:
+- docs/ISSUES.md
+- docs/DECISIONS.md
 """
 
 from pathlib import Path
 from datetime import datetime
 import json
+import threading
 import streamlit as st
 
+# =========================================================
+# ANTES — imports existentes
+# =========================================================
 from transcriber import transcribe_audio, save_transcription_bundle
 from session_profiles import resolve_session_config
 from summarizers.corporate_minutes import generate_corporate_minutes
 from summarizers.ollama_summarizer import summarize_with_ollama
 
+# =========================================================
+# NOVO — gravação local via core
+# =========================================================
+from core.recorder import record_until_stop
+
 
 # =========================================================
 # Diretórios base
 # =========================================================
-
 BASE_OUTPUT = Path("output")
 TRANSCRIPTS_DIR = BASE_OUTPUT / "transcripts"
 RECORDINGS_DIR = BASE_OUTPUT / "recordings"
@@ -39,7 +54,6 @@ SUMMARIES_DIR.mkdir(parents=True, exist_ok=True)
 # =========================================================
 # Utilidades
 # =========================================================
-
 def load_transcript_with_context(txt_path: Path) -> tuple[str, str]:
     text = txt_path.read_text(encoding="utf-8")
     meta_path = txt_path.with_suffix(".meta.json")
@@ -57,18 +71,31 @@ def load_preamble(session_type: str) -> str:
 
 
 # =========================================================
+# Session State (NOVO)
+# =========================================================
+if "recording" not in st.session_state:
+    st.session_state.recording = False
+
+if "recorded_audio" not in st.session_state:
+    st.session_state.recorded_audio = None
+
+
+# =========================================================
 # UI — Streamlit
 # =========================================================
-
 st.set_page_config(page_title="Gravador e Transcritor", page_icon="🎙️")
 st.title("🎙️ Gravador e Transcritor")
 
+# =========================================================
+# ANTES — aviso fixo de CLI
+# =========================================================
+# NOVO — aviso atualizado, sem negar o CLI
 st.info(
-    "ℹ️ **Importante (Windows)**\n\n"
-    "A gravação de áudio é feita via **CLI**, não pelo navegador.\n\n"
-    "Use:\n"
-    "`python cli_local.py gravar`\n\n"
-    "Ou envie abaixo um arquivo WAV já gravado."
+    "ℹ️ **Formas de entrada de áudio**\n\n"
+    "- Gravação local via microfone (aba abaixo)\n"
+    "- Upload de arquivo WAV\n"
+    "- CLI (`python cli_local.py gravar`)\n\n"
+    "Todos os métodos utilizam o mesmo pipeline de transcrição."
 )
 
 tipo = st.sidebar.selectbox(
@@ -80,25 +107,76 @@ tab_transc, tab_resumo = st.tabs(["🎛️ Transcrição", "📝 Ata / Resumo"])
 
 
 # =========================================================
-# Aba 1 — Transcrição (UPLOAD DE WAV)
+# Aba 1 — Transcrição
 # =========================================================
-
 with tab_transc:
+
+    # -----------------------------------------------------
+    # NOVO — gravação local via microfone
+    # -----------------------------------------------------
+    st.subheader("🎙️ Gravação local")
+
+    nome_audio = st.text_input(
+        "Nome base do arquivo de áudio",
+        value="gravacao",
+    )
+
+    if not st.session_state.recording:
+        if st.button("▶️ Gravar via microfone"):
+            st.session_state.recording = True
+
+            def _record():
+                try:
+                    audio_path = record_until_stop(
+                        output_dir=RECORDINGS_DIR,
+                        base_name=nome_audio,
+                    )
+                    st.session_state.recorded_audio = audio_path
+                except Exception as e:
+                    st.error(f"Falha na gravação: {e}")
+                finally:
+                    st.session_state.recording = False
+
+            threading.Thread(target=_record, daemon=True).start()
+
+    if st.session_state.recording:
+        st.warning("🎙️ Gravando... pressione ENTER no terminal para finalizar")
+
+    if st.session_state.recorded_audio:
+        st.success(f"📄 Áudio gravado: {st.session_state.recorded_audio.name}")
+        st.audio(str(st.session_state.recorded_audio))
+
+
+    # -----------------------------------------------------
+    # ANTES — upload de WAV (mantido)
+    # -----------------------------------------------------
+    st.divider()
+    st.subheader("📤 Upload de arquivo WAV")
+
     uploaded = st.file_uploader(
         "Selecione um arquivo WAV para transcrição",
         type=["wav"],
     )
 
+    wav_path: Path | None = None
+
     if uploaded:
         wav_path = RECORDINGS_DIR / uploaded.name
         wav_path.write_bytes(uploaded.read())
-
         st.audio(str(wav_path))
 
-        if st.button("Transcrever áudio"):
+    # -----------------------------------------------------
+    # Transcrição (comum aos dois fluxos)
+    # -----------------------------------------------------
+    audio_to_transcribe = (
+        st.session_state.recorded_audio or wav_path
+    )
+
+    if audio_to_transcribe:
+        if st.button("🧠 Transcrever áudio"):
             with st.spinner("Transcrevendo áudio..."):
                 result = transcribe_audio(
-                    audio_path=wav_path,
+                    audio_path=audio_to_transcribe,
                     session_type=tipo,
                 )
 
@@ -120,9 +198,8 @@ with tab_transc:
 
 
 # =========================================================
-# Aba 2 — Ata / Resumo
+# Aba 2 — Ata / Resumo (INALTERADA)
 # =========================================================
-
 with tab_resumo:
     files = sorted(TRANSCRIPTS_DIR.glob("*.txt"), reverse=True)
 
