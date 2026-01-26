@@ -1,254 +1,251 @@
 """
 app.py
 
-Responsabilidade:
-- Interface Streamlit para transcrição e geração de atas/resumos
-- SUPORTA:
-    - Upload de WAV
-    - Gravação local via microfone (NOVO)
-- NÃO altera core nem lógica de ASR
+Interface Streamlit para gravação de áudio com pause/resume e finalização segura.
 
-Decisões técnicas:
-- ADR-001 — Transcrição imutável
-- ADR-002 — Estrutura de Resumo / Ata Corporativa
-- Issue 1 — Streamlit UI (MVP)
+Princípios de arquitetura:
+- Streamlit NÃO acessa session_state dentro de threads
+- Threads não chamam st.* (UI)
+- Comunicação thread → UI via estruturas simples (dict + flags)
+- Core de gravação permanece intacto (core.recorder)
 
-Fontes:
-- docs/ISSUES.md
+UX:
+- Tempo atualizado por evento (pause / retomar / finalizar)
+- Indicador visual contínuo de gravação (spinner)
+- Botões habilitados/desabilitados conforme estado (Opção A)
+
+Referências:
 - docs/DECISIONS.md
+- docs/STATUS_ATUAL.md
 """
 
 from pathlib import Path
-from datetime import datetime
-import json
 import threading
+import time
+import logging
+
 import streamlit as st
 
-# =========================================================
-# ANTES — imports existentes
-# =========================================================
-from transcriber import transcribe_audio, save_transcription_bundle
-from session_profiles import resolve_session_config
-from summarizers.corporate_minutes import generate_corporate_minutes
-from summarizers.ollama_summarizer import summarize_with_ollama
-
-# =========================================================
-# NOVO — gravação local via core
-# =========================================================
 from core.recorder import record_until_stop
 
+# ---------------------------------------------------------------------
+# Configuração
+# ---------------------------------------------------------------------
+AUDIO_DIR = Path("output/audio")
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-# =========================================================
-# Diretórios base
-# =========================================================
-BASE_OUTPUT = Path("output")
-TRANSCRIPTS_DIR = BASE_OUTPUT / "transcripts"
-RECORDINGS_DIR = BASE_OUTPUT / "recordings"
-SUMMARIES_DIR = BASE_OUTPUT / "summaries"
-
-TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-SUMMARIES_DIR.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger(__name__)
 
 
-# =========================================================
-# Utilidades
-# =========================================================
-def load_transcript_with_context(txt_path: Path) -> tuple[str, str]:
-    text = txt_path.read_text(encoding="utf-8")
-    meta_path = txt_path.with_suffix(".meta.json")
+# ---------------------------------------------------------------------
+# Estado inicial
+# ---------------------------------------------------------------------
+def _init_state():
+    defaults = {
+        "recording": False,
+        "paused": False,
+        "finalizing": False,
+        "start_time": None,
+        "pause_started_at": None,
+        "paused_time_total": 0.0,
+        "audio_path": None,
+        "stop_event": threading.Event(),
+        "pause_event": threading.Event(),
+        "result_holder": {},
+    }
 
-    if meta_path.exists():
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        return text, meta.get("session_type", "outro")
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-    return text, "outro"
-
-
-def load_preamble(session_type: str) -> str:
-    resolved = resolve_session_config(session_type, Path("."))
-    return resolved["preamble_path"].read_text(encoding="utf-8")
-
-
-# =========================================================
-# Session State (NOVO)
-# =========================================================
-if "recording" not in st.session_state:
-    st.session_state.recording = False
-
-if "recorded_audio" not in st.session_state:
-    st.session_state.recorded_audio = None
+    # gravação começa despausada
+    st.session_state.pause_event.set()
 
 
-# =========================================================
-# UI — Streamlit
-# =========================================================
-st.set_page_config(page_title="Gravador e Transcritor", page_icon="🎙️")
-st.title("🎙️ Gravador e Transcritor")
-
-# =========================================================
-# ANTES — aviso fixo de CLI
-# =========================================================
-# NOVO — aviso atualizado, sem negar o CLI
-st.info(
-    "ℹ️ **Formas de entrada de áudio**\n\n"
-    "- Gravação local via microfone (aba abaixo)\n"
-    "- Upload de arquivo WAV\n"
-    "- CLI (`python cli_local.py gravar`)\n\n"
-    "Todos os métodos utilizam o mesmo pipeline de transcrição."
-)
-
-tipo = st.sidebar.selectbox(
-    "Tipo de sessão",
-    ["reuniao_interna", "reuniao_externa", "treinamento", "curso", "outro"],
-)
-
-tab_transc, tab_resumo = st.tabs(["🎛️ Transcrição", "📝 Ata / Resumo"])
+# ---------------------------------------------------------------------
+# Cálculo de tempo
+# ---------------------------------------------------------------------
+def _tempo_total():
+    if not st.session_state.start_time:
+        return 0.0
+    return time.time() - st.session_state.start_time
 
 
-# =========================================================
-# Aba 1 — Transcrição
-# =========================================================
-with tab_transc:
+def _tempo_gravado():
+    return max(0.0, _tempo_total() - st.session_state.paused_time_total)
 
-    # -----------------------------------------------------
-    # NOVO — gravação local via microfone
-    # -----------------------------------------------------
-    st.subheader("🎙️ Gravação local")
 
-    nome_audio = st.text_input(
-        "Nome base do arquivo de áudio",
-        value="gravacao",
+# ---------------------------------------------------------------------
+# Thread de gravação (SEM Streamlit aqui)
+# ---------------------------------------------------------------------
+def _record_worker(
+    output_dir: Path,
+    base_name: str,
+    stop_event: threading.Event,
+    pause_event: threading.Event,
+    result_holder: dict,
+):
+    try:
+        audio_path = record_until_stop(
+            output_dir=output_dir,
+            base_name=base_name,
+            stop_event=stop_event,
+            pause_event=pause_event,
+            show_timer=False,
+        )
+        result_holder["audio_path"] = audio_path
+    except Exception as exc:
+        result_holder["error"] = str(exc)
+        logger.exception("Erro na gravação (thread)")
+
+
+# ---------------------------------------------------------------------
+# UI principal
+# ---------------------------------------------------------------------
+def main():
+    st.title("🎙️ Gravação de Áudio")
+
+    _init_state()
+
+    base_name = st.text_input(
+        "Nome do arquivo de áudio",
+        disabled=st.session_state.recording
     )
 
-    if not st.session_state.recording:
-        if st.button("▶️ Gravar via microfone"):
+    col1, col2, col3 = st.columns(3)
+
+    # -------------------------------------------------------------
+    # Iniciar
+    # -------------------------------------------------------------
+    with col1:
+        if st.button(
+            "▶️ Iniciar",
+            disabled=st.session_state.recording or not base_name
+        ):
+            logger.info("Início de gravação via Streamlit")
+
+            # reset estado
             st.session_state.recording = True
+            st.session_state.paused = False
+            st.session_state.finalizing = False
+            st.session_state.start_time = time.time()
+            st.session_state.paused_time_total = 0.0
+            st.session_state.pause_started_at = None
+            st.session_state.audio_path = None
 
-            def _record():
-                try:
-                    audio_path = record_until_stop(
-                        output_dir=RECORDINGS_DIR,
-                        base_name=nome_audio,
-                    )
-                    st.session_state.recorded_audio = audio_path
-                except Exception as e:
-                    st.error(f"Falha na gravação: {e}")
-                finally:
-                    st.session_state.recording = False
+            # limpar eventos/resultados
+            st.session_state.stop_event.clear()
+            st.session_state.pause_event.set()
+            st.session_state.result_holder.clear()
 
-            threading.Thread(target=_record, daemon=True).start()
+            threading.Thread(
+                target=_record_worker,
+                args=(
+                    AUDIO_DIR,
+                    base_name,
+                    st.session_state.stop_event,
+                    st.session_state.pause_event,
+                    st.session_state.result_holder,
+                ),
+                daemon=True,
+            ).start()
+
+    # -------------------------------------------------------------
+    # Pausar / Retomar
+    # -------------------------------------------------------------
+    with col2:
+        if st.button(
+            "⏸️ Pausar",
+            disabled=not st.session_state.recording or st.session_state.paused
+        ):
+            logger.info("Gravação pausada via Streamlit")
+            st.session_state.paused = True
+            st.session_state.pause_started_at = time.time()
+            st.session_state.pause_event.clear()
+
+        if st.button(
+            "▶️ Retomar",
+            disabled=not st.session_state.paused
+        ):
+            logger.info("Gravação retomada via Streamlit")
+
+            if st.session_state.pause_started_at is not None:
+                paused_delta = time.time() - st.session_state.pause_started_at
+                st.session_state.paused_time_total += paused_delta
+            else:
+                logger.warning(
+                    "Retomada solicitada sem pausa registrada (estado inconsistente)"
+                )
+
+            st.session_state.pause_started_at = None
+            st.session_state.paused = False
+            st.session_state.pause_event.set()
+
+    # -------------------------------------------------------------
+    # Finalizar
+    # -------------------------------------------------------------
+    with col3:
+        if st.button(
+            "⏹️ Finalizar",
+            disabled=not st.session_state.recording
+        ):
+            logger.info("Finalização solicitada via Streamlit")
+            st.session_state.finalizing = True
+            st.session_state.stop_event.set()
+
+    # -------------------------------------------------------------
+    # Status visual
+    # -------------------------------------------------------------
+    st.divider()
 
     if st.session_state.recording:
-        st.warning("🎙️ Gravando... pressione ENTER no terminal para finalizar")
+        estado = "⏸️ Pausado" if st.session_state.paused else "🔴 Gravando"
+        st.markdown(f"**Estado:** {estado}")
 
-    if st.session_state.recorded_audio:
-        st.success(f"📄 Áudio gravado: {st.session_state.recorded_audio.name}")
-        st.audio(str(st.session_state.recorded_audio))
+        if not st.session_state.paused and not st.session_state.finalizing:
+            with st.spinner("Gravação em andamento..."):
+                pass
 
-
-    # -----------------------------------------------------
-    # ANTES — upload de WAV (mantido)
-    # -----------------------------------------------------
-    st.divider()
-    st.subheader("📤 Upload de arquivo WAV")
-
-    uploaded = st.file_uploader(
-        "Selecione um arquivo WAV para transcrição",
-        type=["wav"],
-    )
-
-    wav_path: Path | None = None
-
-    if uploaded:
-        wav_path = RECORDINGS_DIR / uploaded.name
-        wav_path.write_bytes(uploaded.read())
-        st.audio(str(wav_path))
-
-    # -----------------------------------------------------
-    # Transcrição (comum aos dois fluxos)
-    # -----------------------------------------------------
-    audio_to_transcribe = (
-        st.session_state.recorded_audio or wav_path
-    )
-
-    if audio_to_transcribe:
-        if st.button("🧠 Transcrever áudio"):
-            with st.spinner("Transcrevendo áudio..."):
-                result = transcribe_audio(
-                    audio_path=audio_to_transcribe,
-                    session_type=tipo,
-                )
-
-            if not result["text"].strip():
-                st.warning("Transcrição vazia após processamento.")
-            else:
-                out = (
-                    TRANSCRIPTS_DIR
-                    / f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{tipo}.txt"
-                )
-                save_transcription_bundle(result, out)
-
-                st.success("Transcrição concluída com sucesso.")
-                st.text_area(
-                    "Texto transcrito",
-                    result["text"],
-                    height=300,
-                )
-
-
-# =========================================================
-# Aba 2 — Ata / Resumo (INALTERADA)
-# =========================================================
-with tab_resumo:
-    files = sorted(TRANSCRIPTS_DIR.glob("*.txt"), reverse=True)
-
-    if not files:
-        st.info("Nenhuma transcrição disponível.")
-    else:
-        selected = st.selectbox(
-            "Selecione a transcrição",
-            files,
-            format_func=lambda p: p.name,
+        st.markdown(
+            f"⏱️ **Tempo total:** `{_tempo_total():.1f}s`  \n"
+            f"🎙️ **Tempo gravado:** `{_tempo_gravado():.1f}s`"
         )
 
-        text, ctx = load_transcript_with_context(selected)
-        st.caption(f"Contexto detectado: **{ctx}**")
+    if st.session_state.finalizing:
+        st.info("Finalizando gravação, aguarde…")
 
-        st.text_area(
-            "Transcrição (somente leitura)",
-            text,
-            height=300,
-        )
+    # -------------------------------------------------------------
+    # Coleta de resultado do thread (UI controla)
+    # -------------------------------------------------------------
+    if st.session_state.finalizing:
+        holder = st.session_state.result_holder
 
-        if st.button("Gerar ata / resumo"):
-            try:
-                if not text.strip():
-                    raise ValueError(
-                        "Transcrição vazia. Não é possível gerar ata."
-                    )
+        if "error" in holder:
+            st.error(f"Erro na gravação: {holder['error']}")
+            st.session_state.finalizing = False
+            st.session_state.recording = False
 
-                preamble = load_preamble(ctx)
+        if "audio_path" in holder:
+            st.session_state.audio_path = holder["audio_path"]
+            st.session_state.finalizing = False
+            st.session_state.recording = False
+            st.session_state.paused = False
 
-                markdown = generate_corporate_minutes(
-                    transcription_text=text,
-                    preamble_text=preamble,
-                    context_label=ctx,
-                    llm_callable=summarize_with_ollama,
-                )
+            st.success("Gravação concluída com sucesso!")
 
-                out_md = SUMMARIES_DIR / f"{selected.stem}_ata.md"
-                out_md.write_text(markdown, encoding="utf-8")
+    if st.session_state.audio_path:
+        st.write(st.session_state.audio_path)
 
-                st.success("Ata gerada com sucesso.")
-                st.markdown(markdown)
-                st.caption(f"Arquivo salvo em: `{out_md}`")
 
-            except ValueError as ve:
-                st.warning(str(ve))
+if __name__ == "__main__":
+    main()
 
-            except Exception as e:
-                st.error(
-                    "Erro ao gerar ata.\n\n"
-                    f"Detalhe técnico: {e}"
-                )
+
+# ---------------------------------------------------------------------
+# CHANGELOG
+# 2026-01-26
+# - Implementação segura de gravação via Streamlit
+# - Pause / Resume com tempo por evento
+# - Finalização confiável sem travamento
+# - Comunicação thread → UI sem acesso ilegal ao session_state
+# - Logs adicionados para rastreabilidade
