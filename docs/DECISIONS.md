@@ -419,4 +419,20 @@ A partir daqui, **todo código que eu te entregar**:
 * tanto em **docstring** quanto em **changelog**
 * e sempre citando o caminho `Prompts/...`
 
+## DEC-00X — Protocolo de Estouro de Contexto
 
+### Contexto
+Sessões longas, múltiplas issues e uso de LLMs aumentam o risco de perda
+de contexto técnico e decisões.
+
+### Decisão
+Adotar protocolo formal para estouro de contexto e troca de prompt,
+com atualização obrigatória de STATUS, decisões e versionamento.
+
+### Impacto
+- Continuidade garantida
+- Menor retrabalho
+- Auditoria técnica facilitada
+
+### Status
+Ativa
