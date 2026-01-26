@@ -19,3 +19,7 @@ Mapa de documentos do projeto.
 
 ⚠️ Nenhum novo documento deve ser criado para tratar de continuidade ou
 troca de contexto fora desses arquivos.
+- core/ → áudio e ASR
+- refiners/ → pós-processamento determinístico
+- summarizers/ → LLM local (Ollama)
+- app.py → UX Streamlit

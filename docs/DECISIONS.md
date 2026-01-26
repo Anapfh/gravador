@@ -436,3 +436,7 @@ com atualização obrigatória de STATUS, decisões e versionamento.
 
 ### Status
 Ativa
+- Whisper é a única engine de transcrição na UI (Issue 4)
+- GPT-4o permanece como fallback técnico
+- Refinadores e LLM não alteram transcrição original
+- Ollama é usado apenas para interpretação/sumarização
