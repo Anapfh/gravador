@@ -19,3 +19,13 @@ Mapa de documentos do projeto.
 
 ⚠️ Nenhum novo documento deve ser criado para tratar de continuidade ou
 troca de contexto fora desses arquivos.
+- core/ → áudio e ASR
+- refiners/ → pós-processamento determinístico
+- summarizers/ → LLM local (Ollama)
+- app.py → UX Streamlit
+- app.py → Interface Streamlit (execução declarativa)
+- core/recorder.py → CLI only
+- core/recorder_streamlit.py → UI wrapper
+- app.py → Interface Streamlit (execução declarativa)
+- core/recorder.py → Gravação via CLI
+- core/recorder_streamlit.py → Wrapper para UI Streamlit

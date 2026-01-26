@@ -18,3 +18,9 @@ logs/
 # Cache
 __pycache__/
 .cache/
+
+output/
+logs/
+*.wav
+*.txt
+*.json
