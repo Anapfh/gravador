@@ -1,0 +1,27 @@
+## [0.2.0] — Configuração via TOML
+
+### Added
+- Configuração centralizada de transcrição via `config/transcription.toml`
+- Logs estruturados de engine e refinadores
+
+### Fixed
+- Validação de engine inválido
+- Blindagem contra TOML incompleto
+
+### Notes
+- TOML é opcional
+- Defaults preservados
+
+
+## [0.2.0] — Configuração via TOML
+
+### Added
+- Configuração centralizada de transcrição via `transcription.toml`
+- Logs informativos de engine e refinadores
+
+### Fixed
+- Alinhamento de contrato entre transcriber e whisper_core
+
+### Notes
+- TOML é opcional
+- Defaults preservados

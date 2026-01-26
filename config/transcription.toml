@@ -6,7 +6,7 @@
 engine = "whisper"
 
 # ======================================================
-# Alucinação
+# Alucinação (corte de cauda e padrões irreais)
 # ======================================================
 
 [transcription.hallucination]
@@ -23,9 +23,8 @@ window = 100
 unique_ratio_threshold = 0.20
 most_common_ratio_threshold = 0.20
 
-
 # ======================================================
-# Oralidade
+# Oralidade (remoção de vícios de fala)
 # ======================================================
 
 [transcription.orality]
@@ -42,7 +41,6 @@ terms = [
   "tá bom"
 ]
 
-
 # ======================================================
 # Repetição
 # ======================================================
@@ -50,15 +48,12 @@ terms = [
 [transcription.repetition]
 enabled = true
 max_consecutive = 1
+
 # ======================================================
 # Captura de áudio (CLI)
 # ======================================================
 
 [transcription.audio]
-# Dispositivo de entrada:
-# 10 = Mixagem estéreo (Realtek HD Audio)
-# 11 = Microfone (Realtek HD Audio Mic)
 input_device_index = 11
 sample_rate = 16000
 channels = 1
-
