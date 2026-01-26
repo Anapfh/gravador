@@ -11,6 +11,40 @@ Este documento define as **regras de ouro obrigatórias** do projeto, com o obje
 - garantir rastreabilidade técnica  
 - preservar ganhos já homologados  
 
+
+
+## 🚨 Protocolo Oficial de Estouro de Contexto
+
+Este projeto adota um protocolo formal para lidar com estouro de contexto,
+troca de prompt, troca de sessão ou qualquer reinicialização de raciocínio
+que possa comprometer a continuidade técnica.
+
+### Sempre que houver estouro de contexto ou troca de prompt, é OBRIGATÓRIO:
+
+1. Atualizar o arquivo `docs/STATUS_ATUAL.md`
+   - Registrar o ponto exato do projeto
+   - Informar a issue em andamento
+   - Descrever o que já foi concluído e o que falta
+
+2. Registrar novas decisões técnicas
+   - Incluir em `docs/DECISIONS.md`
+   - Nunca criar arquivos de decisão isolados (ex: ADR solto)
+
+3. Versionar no GitHub
+   - Commitar documentação e código relacionados
+   - Garantir rastreabilidade histórica
+
+4. Criar ou atualizar a seção:
+   **“Troca de Contexto / Continuidade”**
+   - Descrever o motivo da troca
+   - Registrar riscos conhecidos
+   - Garantir que um novo contexto consiga continuar sem perda de informação
+
+### Objetivo
+Garantir continuidade, auditabilidade e segurança técnica,
+evitando perda de decisões e retrabalho.
+
+
 ---
 
 ## 1. Princípios Fundamentais (Imutáveis)
