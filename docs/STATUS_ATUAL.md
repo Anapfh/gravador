@@ -47,3 +47,36 @@ Issue 2 — Pausar / Retomar gravação via UI
 ## Observação
 Troca de contexto realizada para segurança e continuidade.
 
+## Última Issue Concluída
+Issue 2 — Pausar / Retomar gravação via UI
+
+## Estado Atual
+- Gravação local com pause/resume estável (CLI)
+- Core preservado, stream contínuo
+- WAV único garantido
+- Thread-safe (Event-based)
+
+## Observações
+- main.py oficialmente deprecado
+- Streamlit não impactado
+
+## 🔁 Troca de Contexto / Continuidade
+
+- Data: YYYY-MM-DD
+- Motivo da troca de contexto:
+  (ex: estouro de contexto, troca de prompt, reinicialização da sessão)
+
+- Estado do projeto no momento da troca:
+  - Última issue concluída:
+  - Issue em andamento:
+  - Código estável até:
+  - Pendências abertas:
+
+- Riscos conhecidos:
+  - (ex: documentação a unificar, testes pendentes, refatoração planejada)
+
+- Próximos passos claros:
+  1.
+  2.
+  3.
+
