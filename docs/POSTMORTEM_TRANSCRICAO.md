@@ -998,3 +998,87 @@ Qualquer alteração futura na captura **deve obrigatoriamente consultar este do
 > ❗ **A captura correta é a base de todo o pipeline.**
 
 Este postmortem encerra definitivamente o tema.
+
+# Postmortem — Transcrição Parcial e Incorreta
+
+## Contexto
+
+Durante a execução do pipeline do projeto **Gravador Transcritor Local**, foi observado que o sistema conseguiu gerar:
+- arquivo de áudio (`.wav`)
+- arquivo de transcrição (`.txt`)
+
+Entretanto, a transcrição apresentou problemas relevantes:
+- não cobriu todo o áudio gravado
+- apresentou cortes indevidos
+- gerou trechos semanticamente incorretos
+
+Este postmortem documenta o ocorrido, identifica a causa-raiz e define ações corretivas.
+
+---
+
+## O que aconteceu
+
+A **Etapa 2 — Transcrição** foi executada antes do encerramento formal da **Etapa 1 — Bundle Canônico RAW**.
+
+Na prática:
+- o arquivo de áudio ainda não tinha sido explicitamente declarado como finalizado
+- não havia garantia formal de integridade, duração final ou estabilidade do WAV
+- o pipeline não impunha um gate entre captura (RAW) e interpretação (transcrição)
+
+Mesmo assim, a transcrição foi permitida.
+
+---
+
+## Impacto
+
+A execução prematura da transcrição resultou em:
+- processamento de áudio incompleto ou ainda em escrita
+- perda de partes do conteúdo gravado
+- transcrição truncada ou incorreta
+- resultados não reprodutíveis e difíceis de auditar
+
+O problema **não está relacionado à qualidade do modelo de ASR** (Whisper ou GPT-4o), mas à violação da fronteira entre etapas do pipeline.
+
+---
+
+## Causa-raiz
+
+A causa principal foi a **ausência de um critério formal de fechamento da Etapa 1**.
+
+Especificamente:
+- o Bundle RAW ainda não estava canonizado
+- não existia um estado explícito `READY`
+- a Etapa 2 não validava se o áudio estava estável e finalizado
+
+Isso permitiu que a transcrição fosse executada sobre dados ainda instáveis.
+
+---
+
+## Lição Aprendida
+
+> **Transcrição só é confiável quando o Bundle Canônico RAW está formalmente fechado.**
+
+Qualquer tentativa de interpretar áudio que:
+- ainda esteja sendo gravado
+- ainda esteja sendo escrito em disco
+- não possua metadados finais consistentes
+
+resultará, inevitavelmente, em erros.
+
+---
+
+## Ações Corretivas Definidas
+
+1. Formalizar o encerramento da Etapa 1 (Bundle RAW)
+2. Introduzir um gate obrigatório entre Etapa 1 e Etapa 2
+3. Proibir a execução de transcrição sem Bundle RAW em estado `READY`
+4. Documentar explicitamente o contrato entre as etapas do pipeline
+
+---
+
+## Conclusão
+
+O problema observado não representou falha do modelo nem retrocesso técnico, mas sim um **checkpoint arquitetural importante**.
+
+A partir deste postmortem, a separação entre captura (RAW) e interpretação (Transcrição) passa a ser tratada como um contrato obrigatório do sistema.
+

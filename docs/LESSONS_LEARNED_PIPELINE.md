@@ -501,3 +501,109 @@ Resultado:
 - aumento significativo de qualidade
 - redução de erros
 - pipeline estável
+
+# Lessons Learned — Pipeline Gravador–Transcritor
+
+## Context
+
+Durante o desenvolvimento do projeto **Gravador Transcritor Local**, foi identificado um problema na geração de transcrições a partir de gravações locais de áudio.
+
+Embora o sistema tenha conseguido gerar:
+- o arquivo de áudio (`.wav`)
+- o arquivo de transcrição (`.txt` / `.json`)
+
+o resultado da transcrição apresentou falhas relevantes, como:
+- transcrição parcial do áudio
+- cortes indevidos no conteúdo
+- erros semânticos em trechos específicos
+
+Este documento registra as **lições aprendidas**, com foco em evitar recorrência e fortalecer a arquitetura do pipeline.
+
+---
+
+## O que aconteceu
+
+A **Etapa 2 — Transcrição** foi executada antes do encerramento formal da **Etapa 1 — Bundle Canônico RAW**.
+
+Na prática:
+- o áudio ainda não havia sido declarado como finalizado
+- o estado da gravação não estava explicitamente encerrado
+- não existia garantia de integridade, duração final ou estabilidade do arquivo de áudio
+
+Mesmo assim, o pipeline permitiu que a transcrição fosse iniciada.
+
+---
+
+## Impacto
+
+A execução prematura da transcrição resultou em:
+- processamento de áudio incompleto ou ainda em escrita
+- perda de partes do conteúdo gravado
+- transcrição incorreta ou truncada
+- resultados não reprodutíveis e difíceis de auditar
+
+Importante: o problema **não está relacionado à qualidade do modelo de transcrição**, mas sim à ordem e aos contratos entre as etapas do pipeline.
+
+---
+
+## Causa-raiz
+
+A causa principal foi a **ausência de um gate explícito entre as etapas do pipeline**.
+
+Em particular:
+- não havia um critério formal de “áudio fechado”
+- o Bundle RAW ainda não estava canonizado
+- a Etapa 2 não validava se o Bundle RAW estava em estado `READY`
+
+Isso permitiu que a transcrição fosse executada sobre dados instáveis.
+
+---
+
+## Lição Aprendida (Principal)
+
+> **A transcrição só é confiável quando o Bundle Canônico RAW está formalmente fechado.**
+
+Qualquer tentativa de interpretar áudio que:
+- ainda esteja sendo gravado
+- ainda esteja sendo escrito em disco
+- não possua metadados finais consistentes
+
+resultará, inevitavelmente, em erros de transcrição.
+
+---
+
+## Ações Corretivas
+
+A partir deste aprendizado, foram definidas as seguintes ações:
+
+1. **Formalizar o encerramento da Etapa 1**
+   - definir critérios objetivos para considerar o áudio finalizado
+   - congelar a estrutura e os metadados do Bundle Canônico RAW
+
+2. **Introduzir um gate obrigatório entre etapas**
+   - a Etapa 2 só pode iniciar se `bundle.status == READY`
+
+3. **Reforçar a separação de responsabilidades**
+   - a Etapa 1 é responsável apenas pela captura e persistência do áudio
+   - a Etapa 2 é responsável exclusivamente pela interpretação (transcrição)
+
+---
+
+## Benefícios Esperados
+
+Com essas correções, o pipeline passa a ser:
+- previsível
+- auditável
+- reprocessável
+- resiliente a erros de estado
+
+Além disso, elimina-se uma classe inteira de falhas difíceis de diagnosticar.
+
+---
+
+## Conclusão
+
+O problema observado não representou um retrocesso, mas sim um **checkpoint arquitetural importante**.
+
+A experiência reforçou a necessidade de contratos claros entre as etapas do pipeline e consolidou a importância do **Bundle Canônico RAW** como base confiável para todas as etapas posteriores.
+

@@ -440,3 +440,24 @@ Ativa
 - GPT-4o permanece como fallback técnico
 - Refinadores e LLM não alteram transcrição original
 - Ollama é usado apenas para interpretação/sumarização
+### [2026-01-26] Separação definitiva CLI × Streamlit
+
+Decisão:
+- Manter recorder CLI intocado
+- Criar wrapper específico para Streamlit
+- Evitar input() e loops bloqueantes em UI
+
+Motivo:
+- Streamlit exige execução declarativa
+- Evitar regressões no CLI
+### [2026-01-26] Separação definitiva entre CLI e Streamlit
+
+Decisão:
+- Manter recorder CLI intocado
+- Criar wrapper específico para Streamlit (não bloqueante)
+- Evitar input(), loops e controle de fluxo de terminal na UI
+
+Motivo:
+- Streamlit exige execução declarativa
+- Evitar regressões no modo CLI
+- Clareza arquitetural
