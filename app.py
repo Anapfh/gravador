@@ -1,29 +1,20 @@
 """
 app.py — Interface Streamlit para gravação e transcrição local.
 
-Estado:
-- UI declarativa (Streamlit)
-- Recorder Streamlit não bloqueante
-- Core decide nome final do WAV (fonte da verdade)
-- Transcrição local via whisper_core
-
-IMPORTANTE:
-- NÃO usar main()
-- NÃO usar if __name__ == "__main__"
-
-CHANGELOG:
-2026-01-26
-- Corrigido contrato de path: UI passa a usar o Path retornado pelo core
-- Removida suposição de nome de arquivo na UI
-- Eliminado FileNotFoundError na transcrição
-- Logs reforçados para rastreabilidade
+Correções importantes:
+- Duração calculada apenas para WAV (evita wave.Error)
+- Transcrição de arquivos externos desacoplada da gravação
+- Estado persistido corretamente no Streamlit
 """
 
 from pathlib import Path
-import time
+import json
 import logging
 import tomllib
+import wave
 import streamlit as st
+import subprocess
+import sys
 
 from core.recorder_streamlit import StreamlitRecorder
 from core.whisper_core import whisper_transcribe
@@ -38,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # =====================================================
-# CONFIG (carregamento único)
+# CONFIG
 # =====================================================
 CONFIG_PATH = Path("config.toml")
 config = {}
@@ -46,9 +37,7 @@ config = {}
 if CONFIG_PATH.exists():
     with open(CONFIG_PATH, "rb") as f:
         config = tomllib.load(f)
-    logger.info("config.toml carregado com sucesso")
-else:
-    logger.warning("config.toml não encontrado")
+    logger.info("config.toml carregado")
 
 # =====================================================
 # PATHS
@@ -61,106 +50,166 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
 
 # =====================================================
-# SESSION STATE (inicialização segura)
+# SESSION STATE
 # =====================================================
 st.session_state.setdefault("recorder", None)
 st.session_state.setdefault("audio_path", None)
 st.session_state.setdefault("transcript_text", None)
+st.session_state.setdefault("stats", None)
+st.session_state.setdefault("external_transcript", None)
+st.session_state.setdefault("external_stats", None)
 
 # =====================================================
-# UI — SEMPRE RENDERIZADA
+# UTILS
+# =====================================================
+def get_audio_duration_seconds(path: Path) -> float | None:
+    """
+    Retorna duração em segundos apenas para arquivos WAV.
+    Para outros formatos, retorna None.
+    """
+    try:
+        if path.suffix.lower() != ".wav":
+            logger.info("Duração ignorada (não WAV): %s", path.name)
+            return None
+
+        with wave.open(str(path), "rb") as wf:
+            return wf.getnframes() / float(wf.getframerate())
+
+    except Exception as e:
+        logger.warning("Falha ao calcular duração | %s | %s", path.name, e)
+        return None
+
+
+def open_folder(path: Path):
+    if sys.platform.startswith("win"):
+        subprocess.Popen(f'explorer "{path}"')
+    elif sys.platform.startswith("darwin"):
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+# =====================================================
+# UI — TÍTULO
 # =====================================================
 st.title("🎙️ Gravador & Transcritor Local")
 
-filename = st.text_input(
-    "Nome base do arquivo",
-    value="sessao",
-)
-
+# =====================================================
+# BLOCO 1 — GRAVAÇÃO
+# =====================================================
+filename = st.text_input("Nome base do arquivo", value="sessao")
 col1, col2 = st.columns(2)
 
-# -----------------------------------------------------
-# INICIAR GRAVAÇÃO
-# -----------------------------------------------------
 with col1:
     if st.button("▶️ Iniciar gravação"):
-        if st.session_state.recorder and st.session_state.recorder.is_running():
-            st.warning("Já existe uma gravação em andamento")
-        else:
-            recorder = StreamlitRecorder(
-                output_dir=AUDIO_DIR,
-                base_name=filename,
-            )
-            recorder.start()
+        recorder = StreamlitRecorder(
+            output_dir=AUDIO_DIR,
+            base_name=filename,
+        )
+        recorder.start()
+        st.session_state.recorder = recorder
+        st.session_state.audio_path = None
+        st.session_state.transcript_text = None
+        st.session_state.stats = None
+        st.success("Gravação iniciada")
 
-            st.session_state.recorder = recorder
-            st.session_state.audio_path = None
-            st.session_state.transcript_text = None
-
-            logger.info("Gravação iniciada | base_name=%s", filename)
-            st.success("Gravação iniciada")
-
-# -----------------------------------------------------
-# FINALIZAR GRAVAÇÃO
-# -----------------------------------------------------
 with col2:
     if st.button("⏹️ Finalizar gravação"):
         recorder = st.session_state.get("recorder")
-
-        if not recorder or not recorder.is_running():
-            st.warning("Nenhuma gravação ativa para finalizar")
-        else:
+        if recorder and recorder.is_running():
             recorder.stop()
-
-            # 🔑 fonte da verdade: path retornado pelo core
-            if recorder.final_audio_path:
-                st.session_state.audio_path = recorder.final_audio_path
-                logger.info(
-                    "Gravação finalizada | path=%s",
-                    recorder.final_audio_path,
-                )
-                st.success("Gravação finalizada com sucesso")
-            else:
-                logger.error("Gravação finalizada sem path retornado")
-                st.error("Erro ao finalizar gravação")
+            st.session_state.audio_path = recorder.final_audio_path
+            st.success("Gravação finalizada")
 
 st.divider()
 
 # =====================================================
-# TRANSCRIÇÃO (manual — Etapa 1)
+# BLOCO 2 — TRANSCRIÇÃO DA GRAVAÇÃO ATUAL
 # =====================================================
 if st.session_state.audio_path and st.session_state.transcript_text is None:
-    if st.button("📝 Transcrever áudio"):
-        with st.spinner("Transcrevendo..."):
-            try:
-                audio_path = st.session_state.audio_path
-                logger.info("Iniciando transcrição | audio=%s", audio_path)
+    if st.button("📝 Transcrever gravação atual"):
+        with st.spinner("Transcrevendo áudio gravado..."):
+            audio_path = st.session_state.audio_path
+            result = whisper_transcribe(audio_path)
+            text = result.get("text", "").strip()
 
-                result = whisper_transcribe(audio_path)
-                text = result.get("text", "").strip()
+            txt = TRANSCRIPT_DIR / f"{audio_path.stem}.txt"
+            jsn = TRANSCRIPT_DIR / f"{audio_path.stem}.json"
 
-                if not text:
-                    raise ValueError("Transcrição vazia")
+            txt.write_text(text, encoding="utf-8")
+            jsn.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
-                txt_path = TRANSCRIPT_DIR / f"{audio_path.stem}.txt"
-                txt_path.write_text(text, encoding="utf-8")
+            duration = get_audio_duration_seconds(audio_path)
+            words = len(text.split())
 
-                st.session_state.transcript_text = text
+            st.session_state.transcript_text = text
+            st.session_state.stats = {
+                "duration": duration,
+                "words": words,
+            }
 
-                logger.info("Transcrição concluída | %s", txt_path)
-                st.success("Transcrição concluída")
-
-            except Exception as e:
-                logger.exception("Erro na transcrição")
-                st.error(str(e))
+st.divider()
 
 # =====================================================
-# EXIBIÇÃO
+# BLOCO 3 — TRANSCRIÇÃO DE ÁUDIO EXISTENTE (INDEPENDENTE)
 # =====================================================
-if st.session_state.transcript_text:
-    st.subheader("📝 Transcrição")
+st.subheader("📁 Transcrever áudio existente")
+
+uploaded_file = st.file_uploader(
+    "Selecione um arquivo de áudio",
+    type=["wav", "mp3", "m4a", "flac", "ogg"],
+)
+
+if uploaded_file:
+    if st.button("📝 Transcrever arquivo selecionado"):
+        with st.spinner("⏳ Transcrevendo arquivo, isso pode levar alguns minutos..."):
+            temp_audio = AUDIO_DIR / uploaded_file.name
+            temp_audio.write_bytes(uploaded_file.read())
+
+            logger.info("Transcrição manual iniciada | %s", temp_audio)
+
+            result = whisper_transcribe(temp_audio)
+            text = result.get("text", "").strip()
+
+            txt = TRANSCRIPT_DIR / f"{temp_audio.stem}.txt"
+            jsn = TRANSCRIPT_DIR / f"{temp_audio.stem}.json"
+
+            txt.write_text(text, encoding="utf-8")
+            jsn.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            duration = get_audio_duration_seconds(temp_audio)
+            words = len(text.split())
+
+            st.session_state.external_transcript = text
+            st.session_state.external_stats = {
+                "duration": duration,
+                "words": words,
+            }
+
+            st.success("Transcrição concluída")
+
+# =====================================================
+# BLOCO 4 — EXIBIÇÃO DO RESULTADO
+# =====================================================
+if st.session_state.external_transcript:
+    st.subheader("📝 Transcrição do arquivo")
+
+    col1, col2 = st.columns(2)
+
+    if st.session_state.external_stats["duration"] is not None:
+        col1.metric("⏱️ Duração (s)", round(st.session_state.external_stats["duration"], 2))
+    else:
+        col1.caption("⏱️ Duração indisponível para este formato")
+
+    col2.metric("🔤 Palavras", st.session_state.external_stats["words"])
+
     st.text_area(
         "Texto transcrito",
-        value=st.session_state.transcript_text,
+        value=st.session_state.external_transcript,
         height=300,
+    )
+
+    st.button(
+        "📂 Abrir pasta de transcrições",
+        on_click=open_folder,
+        args=(TRANSCRIPT_DIR,),
     )

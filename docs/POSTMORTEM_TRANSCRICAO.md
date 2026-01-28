@@ -1082,3 +1082,11 @@ O problema observado não representou falha do modelo nem retrocesso técnico, m
 
 A partir deste postmortem, a separação entre captura (RAW) e interpretação (Transcrição) passa a ser tratada como um contrato obrigatório do sistema.
 
+### Observação técnica — cálculo de duração de áudio
+
+A biblioteca padrão `wave` do Python suporta apenas arquivos WAV (RIFF).
+Ao permitir transcrição de formatos como MP3, M4A e OGG, tornou-se necessário
+condicionar o cálculo de duração ao formato do arquivo, evitando falhas
+pós-transcrição e garantindo estabilidade da UI.
+
+Decisão: duração é exibida apenas quando disponível de forma confiável.
