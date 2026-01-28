@@ -607,3 +607,11 @@ O problema observado não representou um retrocesso, mas sim um **checkpoint arq
 
 A experiência reforçou a necessidade de contratos claros entre as etapas do pipeline e consolidou a importância do **Bundle Canônico RAW** como base confiável para todas as etapas posteriores.
 
+### Observação técnica — cálculo de duração de áudio
+
+A biblioteca padrão `wave` do Python suporta apenas arquivos WAV (RIFF).
+Ao permitir transcrição de formatos como MP3, M4A e OGG, tornou-se necessário
+condicionar o cálculo de duração ao formato do arquivo, evitando falhas
+pós-transcrição e garantindo estabilidade da UI.
+
+Decisão: duração é exibida apenas quando disponível de forma confiável.
