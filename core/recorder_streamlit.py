@@ -25,6 +25,7 @@ class StreamlitRecorder:
             self.output_dir,
             self.base_name,
             self._stop_event,
+            show_timer=False,
         )
         logger.info("Gravação concluída | path=%s", self.final_audio_path)
 
@@ -51,6 +52,10 @@ class StreamlitRecorder:
         logger.info("Finalizando gravação via Streamlit")
         self._stop_event.set()
         self._thread.join(timeout=10)
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=10)
+        if self._thread and not self._thread.is_alive():
+            self._thread = None
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()

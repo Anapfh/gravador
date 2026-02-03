@@ -129,6 +129,7 @@ def record_until_stop(
             print(
                 f"\r🎙️ Gravando... {elapsed//60:02d}:{elapsed%60:02d}",
                 end="",
+                flush=True,
             )
             time.sleep(1)
 
