@@ -133,3 +133,21 @@ Se qualquer um ocorrer:
 ---
 
 **Documento vivo.** Atualizar a cada mudança estrutural relevante.
+
+---
+
+## 10. Atualizacao 2026-02-03 (Windows / Fase 1-3)
+
+Resumo:
+- CLI continuo com chunking, pause/resume e transcricao consolidada.
+- Streamlit com UX atualizado (status, tempo, pausa/retomar por arquivos).
+- Pipeline governado de resumo/ata com refinadores e preambulos em memoria.
+- Preambulos ampliados e catalogados em docs/PREAMBLES.md.
+- README e roadmap atualizados.
+
+Proxima fase (pendente final):
+- Pausa/retomar com "gap zero" (exige ajuste no core de gravacao).
+
+Futuro:
+- Fase 6: automacao pos-reuniao.
+- Fase 7: diarizacao real.
