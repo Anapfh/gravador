@@ -43,4 +43,11 @@ Objetivo:
 1. Separar falas por participante.
 2. Integrar diarizacao antes da transcricao por segmento.
 3. Avaliar impacto de performance em CPU.
+## Fase 1 — Gravação e Transcrição
+Status: ✅ Concluída
+
+- Gravação via microfone funcional
+- Transcrição com faster-whisper (CPU / int8)
+- Encoding UTF-8 corrigido
+- CLI validada no Windows
 
