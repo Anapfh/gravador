@@ -1,95 +1,73 @@
-﻿# Gravador e Transcritor de Ãudio Local (CLI)
+﻿# Gravador e Transcritor de Audio Local (CLI/Streamlit)
 
-Ferramenta local (CLI / desktop) para **gravaÃ§Ã£o de Ã¡udio com qualidade** e **transcriÃ§Ã£o offline** usando Whisper.
+Ferramenta local para gravacao de audio e transcricao offline usando faster-whisper.
 
 Projeto focado em:
 - confiabilidade
 - previsibilidade
 - uso local
-- arquitetura simples e extensÃ­vel (CLI â†’ Streamlit)
+- arquitetura simples e extensivel (CLI -> Streamlit)
 
 ---
 
 ## Status do Projeto
 
-Fase 1 concluída (gravação e transcrição).
+- Fase 1 concluida (gravacao e transcricao).
+- Fase 2.1/2.2/2.3 concluidas (chunking, pause/resume, transcricao consolidada).
+- Pipeline de resumo/ata governado e Streamlit com UX atualizado.
 
 ---
 
-## ðŸŽ¯ Objetivo
+## Objetivo
 
-Permitir que o usuÃ¡rio:
-1. Grave Ã¡udio localmente com microfones modernos (Windows, AGC)
-2. Gere arquivos WAV compatÃ­veis com Whisper
-3. Transcreva o Ã¡udio localmente, sem depender de serviÃ§os externos
-
----
-
-## ðŸ§± Arquitetura
-
-CLI (cli_local.py)
-â”œâ”€â”€ core/recorder.py â†’ captura de Ã¡udio (SoundDevice)
-â”œâ”€â”€ core/whisper_core.py â†’ transcriÃ§Ã£o (faster-whisper)
-â”œâ”€â”€ refiners/ â†’ pÃ³s-processamento determinÃ­stico
-â””â”€â”€ summarizers/ â†’ sumarizaÃ§Ã£o (opcional)
-
+Permitir que o usuario:
+1. Grave audio localmente com microfones modernos (Windows, AGC)
+2. Gere arquivos WAV compativeis com Whisper
+3. Transcreva o audio localmente, sem depender de servicos externos
 
 ---
 
-## ðŸŽ™ï¸ Captura de Ã¡udio
+## Arquitetura
 
-- Backend: `sounddevice`
-- Taxa: 16 kHz, mono
-- CompatÃ­vel com:
-  - Intel Smart Sound
-  - Realtek
-  - Microfones com AGC
-
-### DecisÃ£o importante
-RMS **nÃ£o Ã© usado como critÃ©rio de validaÃ§Ã£o**.  
-A validaÃ§Ã£o Ã© feita por **variaÃ§Ã£o do sinal**, conforme documentado em `docs/`.
+- CLI (core/cli/mic_cli.py) para gravacao e transcricao
+- Streamlit (app.py) para UI
+- Refiners deterministas (refiners/)
+- Summarizers governados (summarizers/ + core/summarizers/pipeline.py)
 
 ---
 
-## ðŸ§  TranscriÃ§Ã£o
+## Como usar
 
-- Backend: `faster-whisper`
-- Modelo padrÃ£o: `small`
-- ExecuÃ§Ã£o: **offline**
-- Retorno estruturado (`dict`), texto tratado no CLI
-
-> ObservaÃ§Ã£o (Windows): o aviso de *symlink* do HuggingFace Ã© esperado e nÃ£o impacta o funcionamento.
-
----
-
-## â–¶ï¸ Como usar
-
-### 1. Gravar Ã¡udio
+### 1) Gravar/transcrever via CLI (continuo)
 ```bash
-python cli_local.py gravar
-2. Transcrever Ã¡udio
-python cli_local.py transcrever -a output/audio/arquivo.wav
-ðŸ“ Estrutura de diretÃ³rios
-output/
- â”œâ”€â”€ audio/        â†’ arquivos WAV
- â””â”€â”€ transcripts/  â†’ transcriÃ§Ãµes TXT
-ðŸ“š DocumentaÃ§Ã£o tÃ©cnica
-Consulte o diretÃ³rio docs/ para:
+python core/cli/mic_cli.py --chunk-minutes 10
+```
 
-decisÃµes arquiteturais (ADR)
+Saida:
+```
+output/session_YYYY-MM-DD_HH-MM/
+  audio_0001.wav
+  transcricao_0001.txt
+  transcricao_completa.txt
+```
 
-liÃ§Ãµes aprendidas
+### 2) Rodar o Streamlit
+```bash
+streamlit run app.py
+```
 
-postmortem tÃ©cnico da pipeline de transcriÃ§Ã£o
+### 3) Resumo/Ata (pipeline governado)
+No Streamlit, selecione a sessao e o tipo de reuniao. O pipeline:
+- aplica refinadores deterministas
+- injeta preambulo em memoria
+- gera o arquivo final (resumo/ata)
 
-ðŸš§ PrÃ³ximos passos planejados
-Interface Streamlit
+---
 
-Ajustes finos de UX
-
-Empacotamento desktop (opcional)
-
-
-
-
+## Documentacao
+Consulte `docs/` para:
+- ADRs e decisoes
+- lessons learned
+- postmortem
+- catalogo de preambulos (`docs/PREAMBLES.md`)
 

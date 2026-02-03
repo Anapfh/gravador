@@ -2,7 +2,7 @@
 
 Este roadmap descreve apenas itens planejados e nao implementados.
 
-## Fase 2 (planejada): gravacao longa e controle de pausa
+## Fase 2 (concluida): gravacao longa e controle de pausa
 
 Objetivo:
 1. Suportar gravacao longa por chunks de tempo.
@@ -19,7 +19,15 @@ Saidas esperadas:
 2. Transcricoes por chunk.
 3. Transcricao final agregada em arquivo unico.
 
-## Fase 3 (planejada): refinadores
+## Fase 3 (concluida): refinadores + pipeline governado
+
+Inclui:
+1. Pipeline de resumo/ata com refinadores antes do LLM.
+2. Preâmbulos por tipo de reuniao (catalogo em docs/PREAMBLES.md).
+3. Integracao no Streamlit.
+
+Saidas esperadas:
+1. Resumo/ata em Markdown por sessao.
 
 Objetivo:
 1. Limpeza de oralidade e repeticoes.
@@ -50,4 +58,3 @@ Status: ✅ Concluída
 - Transcrição com faster-whisper (CPU / int8)
 - Encoding UTF-8 corrigido
 - CLI validada no Windows
-
