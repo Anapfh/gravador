@@ -45,6 +45,26 @@ Objetivo:
 2. Atas e highlights de reunioes.
 3. Opcional integracao com modelos locais.
 
+## Fase 5 (pendente final): pausa/retomar com "gap zero"
+
+Objetivo:
+1. Implementar pausa real sem criar novos arquivos.
+2. Retomar no mesmo WAV sem lacunas de audio.
+3. Exige ajuste no core de gravacao (risco controlado).
+
+## Fase 6 (futuro): automacao pos-reuniao
+
+Objetivo:
+1. Gerar automaticamente resumo/ata ao finalizar a gravacao.
+2. Notificar ou abrir a pasta com os resultados.
+
+## Fase 7 (futuro): diarizacao real
+
+Objetivo:
+1. Separar falas por participante.
+2. Integrar diarizacao antes da transcricao por segmento.
+3. Avaliar impacto de performance em CPU.
+
 ## Fase 5 (planejada): diarizacao
 
 Objetivo:
