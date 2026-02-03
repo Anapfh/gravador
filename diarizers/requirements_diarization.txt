@@ -1,0 +1,26 @@
+# Python
+python==3.10.*
+
+# Core
+numpy==1.26.4
+
+# Torch stack (compatível com pyannote 3.x)
+torch==2.2.2
+torchaudio==2.2.2
+
+# Lightning (compatível)
+pytorch-lightning==2.1.4
+lightning-fabric==2.1.4
+lightning-utilities==0.10.1
+
+# Pyannote stack
+pyannote.audio==3.1.1
+pyannote.core==5.0.0
+pyannote.database==5.1.3
+pyannote.metrics==3.2.1
+
+# Supporting libs
+omegaconf==2.3.0
+speechbrain==1.0.1
+soundfile
+ffmpeg-python

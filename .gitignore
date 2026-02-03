@@ -1,26 +1,29 @@
-# Ambiente virtual
+# ambientes virtuais
+.venv/
+.venv311_ok/
 .venv*/
-venv/
+venv*/
 
-# Binários e DLLs
-*.exe
-*.dll
-*.zip
-ffmpeg*
-
-# Outputs
-output/
-tests/output/
-
-# Logs
-logs/
-
-# Cache
+# cache e builds
 __pycache__/
-.cache/
+*.pyc
 
+# áudio e saídas
 output/
 logs/
-*.wav
-*.txt
-*.json
+
+# modelos e caches
+.cache/
+*.bin
+*.pt
+
+# wheels e binarios grandes
+wheels/
+ffmpeg-master-latest-win64-gpl/
+ffmpeg.zip
+Lab_whisper.zip
+win_arm64-wheels-main.zip
+docs*.zip
+
+# segredos
+token*.txt

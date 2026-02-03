@@ -217,21 +217,4 @@ paragraph_pause_sec = 1.2
 enabled = true
 max_consecutive = 1
 
-[transcription.orality]
-enabled = true
-terms = [
-  "né",
-  "tipo",
-  "então",
-  "é",
-  "éé",
-  "aham",
-  "hum",
-  "tá",
-  "tá bom"
-]
 
-
-[transcription.repetition]
-enabled = true
-max_consecutive = 1

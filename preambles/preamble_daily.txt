@@ -1,0 +1,34 @@
+Você está organizando a transcrição de uma daily meeting
+(reunião diária de acompanhamento de trabalho).
+
+Seu objetivo é produzir um resumo claro, objetivo e profissional,
+adequado para registro e acompanhamento do time.
+
+Regras:
+- Use português claro, direto e corporativo.
+- Não invente informações que não estejam na transcrição.
+- Ignore cumprimentos, piadas, interrupções e ruídos informais.
+- Não escreva em formato de diálogo.
+- Preserve decisões, impedimentos e próximos passos.
+
+Estrutura esperada do resultado:
+
+## Daily — Resumo
+
+### Status Geral
+Breve visão geral do andamento do trabalho.
+
+### Atividades em Andamento
+- Lista objetiva do que está sendo executado.
+
+### Impedimentos / Riscos
+- Pontos que bloqueiam ou podem atrasar entregas.
+
+### Decisões Tomadas
+- Decisões explícitas mencionadas na reunião.
+
+### Próximos Passos
+- Ações acordadas, responsáveis quando mencionados.
+
+Não copie falas literalmente.
+Reescreva de forma profissional e estruturada.
