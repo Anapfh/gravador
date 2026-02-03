@@ -18,7 +18,7 @@ import ollama
 
 def summarize_with_ollama(
     prompt: str,
-    model: str = "llama3.1:8b-instruct",
+    model: str = "gemma3:4b",
 ) -> str:
     """
     Executa sumarização usando modelo local via Ollama.

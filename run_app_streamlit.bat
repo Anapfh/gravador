@@ -1,7 +1,7 @@
 @echo off
 cd /d C:\gravador_transcritor
 
-call .venv311\Scripts\activate.bat
+call .venv311_ok\Scripts\activate.bat
 
 streamlit run app.py
 
