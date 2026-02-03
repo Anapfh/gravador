@@ -1,10 +1,14 @@
 """
 app.py — Interface Streamlit para gravação e transcrição local.
 
-Correções importantes:
-- Duração calculada apenas para WAV (evita wave.Error)
-- Transcrição de arquivos externos desacoplada da gravação
-- Estado persistido corretamente no Streamlit
+Pipeline:
+- Captura de áudio (RAW)
+- Transcrição Whisper
+- Refino estrutural determinístico (TXT)
+- Persistência de RAW (JSON)
+
+Etapa 2.1:
+- Refino estrutural aplicado sem uso de IA
 """
 
 from pathlib import Path
@@ -18,6 +22,7 @@ import sys
 
 from core.recorder_streamlit import StreamlitRecorder
 from core.whisper_core import whisper_transcribe
+from refiners.structural import refine_structural
 
 # =====================================================
 # LOGGING
@@ -64,7 +69,7 @@ st.session_state.setdefault("external_stats", None)
 # =====================================================
 def get_audio_duration_seconds(path: Path) -> float | None:
     """
-    Retorna duração em segundos apenas para arquivos WAV.
+    Retorna duração em segundos apenas para WAV.
     Para outros formatos, retorna None.
     """
     try:
@@ -129,19 +134,25 @@ if st.session_state.audio_path and st.session_state.transcript_text is None:
     if st.button("📝 Transcrever gravação atual"):
         with st.spinner("Transcrevendo áudio gravado..."):
             audio_path = st.session_state.audio_path
+
             result = whisper_transcribe(audio_path)
-            text = result.get("text", "").strip()
+            raw_text = result.get("text", "").strip()
+
+            refined_text = refine_structural(raw_text)
 
             txt = TRANSCRIPT_DIR / f"{audio_path.stem}.txt"
             jsn = TRANSCRIPT_DIR / f"{audio_path.stem}.json"
 
-            txt.write_text(text, encoding="utf-8")
-            jsn.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            txt.write_text(refined_text, encoding="utf-8")
+            jsn.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
             duration = get_audio_duration_seconds(audio_path)
-            words = len(text.split())
+            words = len(refined_text.split())
 
-            st.session_state.transcript_text = text
+            st.session_state.transcript_text = refined_text
             st.session_state.stats = {
                 "duration": duration,
                 "words": words,
@@ -168,18 +179,23 @@ if uploaded_file:
             logger.info("Transcrição manual iniciada | %s", temp_audio)
 
             result = whisper_transcribe(temp_audio)
-            text = result.get("text", "").strip()
+            raw_text = result.get("text", "").strip()
+
+            refined_text = refine_structural(raw_text)
 
             txt = TRANSCRIPT_DIR / f"{temp_audio.stem}.txt"
             jsn = TRANSCRIPT_DIR / f"{temp_audio.stem}.json"
 
-            txt.write_text(text, encoding="utf-8")
-            jsn.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            txt.write_text(refined_text, encoding="utf-8")
+            jsn.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
             duration = get_audio_duration_seconds(temp_audio)
-            words = len(text.split())
+            words = len(refined_text.split())
 
-            st.session_state.external_transcript = text
+            st.session_state.external_transcript = refined_text
             st.session_state.external_stats = {
                 "duration": duration,
                 "words": words,
@@ -196,7 +212,10 @@ if st.session_state.external_transcript:
     col1, col2 = st.columns(2)
 
     if st.session_state.external_stats["duration"] is not None:
-        col1.metric("⏱️ Duração (s)", round(st.session_state.external_stats["duration"], 2))
+        col1.metric(
+            "⏱️ Duração (s)",
+            round(st.session_state.external_stats["duration"], 2),
+        )
     else:
         col1.caption("⏱️ Duração indisponível para este formato")
 

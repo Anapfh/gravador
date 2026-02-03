@@ -1,79 +1,85 @@
 # CONTEXT_HANDOFF.md
-## Protocolo Oficial de Continuidade de Contexto
 
-Este documento define como o projeto **Gravador Transcritor Local**
-deve ser retomado em novos contextos (novos prompts, novas sessões ou novos colaboradores),
-sem perda de histórico técnico ou decisões arquiteturais.
+## 1. Objetivo do Documento
 
----
+Este documento existe para **permitir troca de contexto segura e rápida** em projetos técnicos, evitando perda de histórico, retrabalho e decisões inconsistentes.
 
-## 📌 Estado Consolidado do Projeto
-
-### Arquitetura
-- Interface principal via **Streamlit**
-- Execução **declarativa** (sem main(), sem blocos CLI)
-- Gravação via:
-  - `core/recorder.py` → CLI (inalterado)
-  - `core/recorder_streamlit.py` → UI (não bloqueante)
-
-### Funcionalidades estáveis
-- Gravação de áudio local
-- Transcrição local via Whisper (faster-whisper)
-- Configuração via `config.toml`
-- Logs estruturados
+Ele deve ser lido **antes de qualquer alteração de código, dependência ou arquitetura**.
 
 ---
 
-## 🧭 Etapas do Projeto
+## 2. Resumo Executivo (TL;DR)
 
-### Etapa 1 — Bundle Canônico RAW (em andamento)
-- Geração de:
-  - áudio bruto
-  - transcrição bruta
-- Versionamento automático
-- Não sobrescrever artefatos
-
-### Etapa 2 — Refiners (planejada)
-- Limpeza de oralidade
-- Remoção de repetições
-- Segmentação semântica
-
-### Etapa 3 — Summarizers (planejada)
-- Resumo estruturado
-- Atas / minutes
-- Integração opcional com Ollama
+* Projeto envolve **captura de áudio, transcrição (Whisper) e diarização (pyannote)**.
+* A complexidade principal não foi código, mas **gestão de ambiente, versões e escopo**.
+* O sistema **funcionou parcialmente**, porém a diarização mostrou alto custo computacional e fragilidade.
+* Decisão atual: **pausar avanço técnico e documentar baseline** antes de evoluir.
 
 ---
 
-## 🚫 O que NÃO deve ser refeito
+## 3. Estado Atual do Projeto
 
-- Arquitetura de gravação
-- Core CLI
-- Integração Whisper
-- Separação UI x Core
-- Decisões já documentadas em `docs/DECISIONS.md`
+### Funciona
+
+* Ambiente WSL2 ativo
+* Ambiente virtual `venv_diarization` criado
+* Download e carregamento de modelos HuggingFace funcionando
+* Pipeline de diarização carrega corretamente
+
+### Funciona com ressalvas
+
+* Diarização roda, porém:
+
+  * Muito lenta em CPU
+  * Sensível a formato de áudio (m4a longo)
+  * Alto custo de embeddings
+
+### Não é bug
+
+* Tempo elevado de processamento
+* Avisos de incompatibilidade de versões (modelo antigo vs torch novo)
 
 ---
 
-## 🔁 Protocolo de Troca de Contexto
+## 4. Principais Decisões Técnicas Já Tomadas
 
-Sempre que houver:
-- troca de prompt
-- sessão interrompida
-- necessidade de retomada futura
-
-Deve-se:
-1. Atualizar `docs/STATUS_ATUAL.md`
-2. Registrar decisões em `docs/DECISIONS.md`
-3. Garantir que este arquivo (`CONTEXT_HANDOFF.md`) reflita o estado atual
+* **Não misturar Whisper e Pyannote no mesmo ambiente**
+* **Diarização não é fase 1 do produto**
+* Pip não resolve arquitetura: versionamento fechado é obrigatório
+* Torch novo pode rodar modelos antigos, mas com risco
 
 ---
 
-## 🎯 Texto Padrão para Retomada (Prompt)
+## 5. Problemas Encontrados (Raiz)
 
-```text
-Projeto: Gravador Transcritor Local
-Etapa atual: Etapa 1 — Bundle Canônico RAW
-Estado: app.py consolidado, UI Streamlit declarativa,
-recorder_streamlit ativo, CLI preservado.
-Objetivo: continuar sem refatorar o que já está estável.
+* Dependências com expectativas de versões diferentes
+* Modelos treinados em torch antigo
+* Tentativa de resolver tudo em um único pipeline
+* Falta inicial de baseline e handoff
+
+---
+
+## 6. O Que NÃO Fazer ao Retomar
+
+* Não atualizar dependências sem documentar
+* Não rodar diarização longa sem timeout
+* Não misturar escopos (captura, transcrição, diarização)
+* Não tentar otimizar antes de entregar valor
+
+---
+
+## 7. Próximo Passo Oficial
+
+1. Gerar `STATUS_TECNICO_ATUAL.md`
+2. Atualizar `BASELINE_PROJETOS_TECNICOS.md` (v1.1)
+3. Só então decidir retomada técnica
+
+---
+
+## 8. Regra de Ouro
+
+> Se parecer que estamos reexplicando coisas, **paramos e atualizamos a documentação**.
+
+---
+
+**Documento criado para ser reutilizável em qualquer projeto técnico.**

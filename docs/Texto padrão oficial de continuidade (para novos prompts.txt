@@ -1,0 +1,23 @@
+Projeto: Gravador Transcritor Local
+
+Estado atual (consolidado):
+- Interface via Streamlit funcional e declarativa
+- Recorder CLI preservado
+- Wrapper recorder_streamlit ativo (não bloqueante)
+- Transcrição local via whisper_core funcionando
+- config.toml validado
+- Arquitetura estável (CLI ≠ UI)
+
+Etapa atual:
+- Etapa 1 — Bundle Canônico RAW
+
+O que NÃO deve ser refeito:
+- Gravação de áudio
+- Transcrição local
+- Estrutura de pastas core/
+- Separação CLI x Streamlit
+
+Objetivo deste prompt:
+- Continuar a partir do estado atual
+- Implementar/fechar a Etapa 1 (Bundle RAW)
+- Avançar sem regressões

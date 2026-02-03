@@ -1,3 +1,10 @@
+## [Unreleased]
+### Added
+- Refino estrutural determinístico aplicado às transcrições
+- TXT agora é gerado com parágrafos e pontuação melhorada
+- RAW preservado integralmente no JSON
+
+
 [2026-01-26] feat(bundle-raw)
 - Implementado Bundle Canônico RAW
 - Integração correta com whisper_core (whisper_transcribe)

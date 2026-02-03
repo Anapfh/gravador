@@ -615,3 +615,7 @@ condicionar o cálculo de duração ao formato do arquivo, evitando falhas
 pós-transcrição e garantindo estabilidade da UI.
 
 Decisão: duração é exibida apenas quando disponível de forma confiável.
+Foi introduzido um refino estrutural determinístico no pipeline,
+aplicado após a transcrição Whisper e antes da persistência do TXT.
+Isso melhora a legibilidade sem alterar o conteúdo semântico
+ou introduzir dependências de IA.
