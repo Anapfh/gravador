@@ -5,6 +5,7 @@ import logging
 import sys
 import tempfile
 import wave
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -28,6 +29,15 @@ def _write_temp_wav(audio_bytes: bytes, sample_rate: int) -> Path:
         wav_file.writeframes(audio_bytes)
 
     return temp_path
+
+
+def _write_wav(audio_bytes: bytes, sample_rate: int, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(output_path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(audio_bytes)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -97,6 +107,12 @@ def _parse_args() -> argparse.Namespace:
         default="output/transcricao.txt",
         help="Caminho do arquivo de saida do texto.",
     )
+    parser.add_argument(
+        "--chunk-minutes",
+        type=int,
+        default=None,
+        help="Ativa gravacao continua com chunks de N minutos.",
+    )
 
     return parser.parse_args()
 
@@ -108,6 +124,42 @@ def _record_audio(mic: "MicRecorder", duration: Optional[float]) -> bytes:
         else:
             audio = mic.recognizer.record(microphone, duration=duration)
     return audio.get_raw_data()
+
+
+def _run_chunk_mode(
+    mic: "MicRecorder",
+    chunk_minutes: int,
+    sample_rate: int,
+    logger: logging.Logger,
+) -> int:
+    chunk_seconds = max(chunk_minutes, 1) * 60
+    session_stamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    session_dir = Path("output") / f"session_{session_stamp}"
+
+    logger.info("Modo continuo ativado | chunk=%d min | session=%s", chunk_minutes, session_dir)
+
+    chunk_index = 1
+    try:
+        with mic.source as microphone:
+            while True:
+                logger.info("Gravando chunk %04d...", chunk_index)
+                audio = mic.recognizer.record(microphone, duration=chunk_seconds)
+                audio_bytes = audio.get_raw_data()
+
+                audio_path = session_dir / f"audio_{chunk_index:04d}.wav"
+                text_path = session_dir / f"transcricao_{chunk_index:04d}.txt"
+
+                _write_wav(audio_bytes, sample_rate, audio_path)
+                logger.info("Chunk salvo em %s", audio_path)
+
+                text = mic.transcribe_audio(audio_bytes)
+                text_path.write_text(text, encoding="utf-8-sig")
+                logger.info("Transcricao salva em %s", text_path)
+
+                chunk_index += 1
+    except KeyboardInterrupt:
+        logger.info("Encerrando por interrupcao do usuario.")
+        return 0
 
 
 def main() -> int:
@@ -132,6 +184,9 @@ def main() -> int:
         mic_index=args.mic_index,
         language=args.language,
     )
+
+    if args.chunk_minutes:
+        return _run_chunk_mode(mic, args.chunk_minutes, args.sample_rate, logger)
 
     logger.info("Gravando audio do microfone...")
     audio_bytes = _record_audio(mic, args.duration)
