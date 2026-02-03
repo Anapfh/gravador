@@ -6,6 +6,8 @@ import sys
 import tempfile
 import wave
 from datetime import datetime
+import threading
+import time
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -138,10 +140,39 @@ def _run_chunk_mode(
 
     logger.info("Modo continuo ativado | chunk=%d min | session=%s", chunk_minutes, session_dir)
 
+    pause_event = threading.Event()
+    stop_event = threading.Event()
+
+    def _key_listener() -> None:
+        try:
+            import msvcrt
+        except ImportError:
+            logger.warning("Captura de teclado indisponivel neste ambiente.")
+            return
+
+        while not stop_event.is_set():
+            if msvcrt.kbhit():
+                key = msvcrt.getwch().lower()
+                if key == "p":
+                    if not pause_event.is_set():
+                        pause_event.set()
+                        logger.info("[PAUSE] Gravacao pausada")
+                elif key == "r":
+                    if pause_event.is_set():
+                        pause_event.clear()
+                        logger.info("[RESUME] Gravacao retomada")
+            time.sleep(0.1)
+
+    key_thread = threading.Thread(target=_key_listener, daemon=True)
+    key_thread.start()
+
     chunk_index = 1
     try:
         with mic.source as microphone:
             while True:
+                if pause_event.is_set():
+                    while pause_event.is_set():
+                        time.sleep(0.2)
                 logger.info("Gravando chunk %04d...", chunk_index)
                 audio = mic.recognizer.record(microphone, duration=chunk_seconds)
                 audio_bytes = audio.get_raw_data()
@@ -159,6 +190,7 @@ def _run_chunk_mode(
                 chunk_index += 1
     except KeyboardInterrupt:
         logger.info("Encerrando por interrupcao do usuario.")
+        stop_event.set()
         return 0
 
 
