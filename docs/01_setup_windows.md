@@ -64,3 +64,16 @@ Trecho relevante:
 output_path.write_text(text, encoding="utf-8-sig")
 ```
 
+## 6. Rodar a interface Streamlit (app.py)
+
+```powershell
+.\.venv311_ok\Scripts\Activate.ps1
+streamlit run app.py
+```
+
+Opcional (atalho via batch):
+
+```powershell
+run_app_streamlit.bat
+```
+

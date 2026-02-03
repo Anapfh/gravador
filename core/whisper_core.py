@@ -1,18 +1,18 @@
-"""
+﻿"""
 whisper_core.py
 
-Backend canônico de transcrição usando faster-whisper.
+Backend canÃ´nico de transcriÃ§Ã£o usando faster-whisper.
 
 Responsabilidades:
-- Executar transcrição local (offline)
+- Executar transcriÃ§Ã£o local (offline)
 - Retornar resultado estruturado (dict)
-- NÃO formatar saída (responsabilidade do CLI/UI)
+- NÃƒO formatar saÃ­da (responsabilidade do CLI/UI)
 
-Decisões:
+DecisÃµes:
 - Backend: faster-whisper (performance + qualidade)
 - Retorno: dict {"text", "language", "segments", "duration_s"}
 
-Referências:
+ReferÃªncias:
 - docs/DECISIONS.md
 - docs/POSTMORTEM_TRANSCRICAO.md
 - docs/LESSONS_LEARNED_PIPELINE_TRANSCRICAO.md
@@ -30,14 +30,14 @@ from faster_whisper import WhisperModel
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------
-# Configuração do modelo
+# ConfiguraÃ§Ã£o do modelo
 # ---------------------------------------------------------
-# Ajustes conservadores e estáveis
-MODEL_NAME = "small"          # bom equilíbrio qualidade/velocidade
+# Ajustes conservadores e estÃ¡veis
+MODEL_NAME = "small"          # bom equilÃ­brio qualidade/velocidade
 DEVICE = "cpu"                # local, sem GPU
-COMPUTE_TYPE = "int8"         # rápido e leve em CPU
+COMPUTE_TYPE = "int8"         # rÃ¡pido e leve em CPU
 
-# Instância única (lazy)
+# InstÃ¢ncia Ãºnica (lazy)
 _model: WhisperModel | None = None
 
 
@@ -57,11 +57,11 @@ def _get_model() -> WhisperModel:
 
 
 # ---------------------------------------------------------
-# API pública
+# API pÃºblica
 # ---------------------------------------------------------
-def whisper_transcribe(audio_path: Path) -> Dict[str, Any]:
+def whisper_transcribe(audio_path: Path, vad_filter: bool = True) -> Dict[str, Any]:
     """
-    Executa transcrição do áudio usando faster-whisper.
+    Executa transcriÃ§Ã£o do Ã¡udio usando faster-whisper.
 
     Args:
         audio_path: caminho para arquivo WAV (mono, 16kHz recomendado)
@@ -71,21 +71,21 @@ def whisper_transcribe(audio_path: Path) -> Dict[str, Any]:
           - text: texto completo
           - language: idioma detectado
           - segments: lista de segmentos (start, end, text)
-          - duration_s: tempo total de execução
+          - duration_s: tempo total de execuÃ§Ã£o
     """
 
     if not audio_path.exists():
-        raise FileNotFoundError(f"Áudio não encontrado: {audio_path}")
+        raise FileNotFoundError(f"Ãudio nÃ£o encontrado: {audio_path}")
 
     model = _get_model()
 
-    logger.info("Iniciando transcrição | audio=%s", audio_path)
+    logger.info("Iniciando transcriÃ§Ã£o | audio=%s", audio_path)
     t0 = time.time()
 
     segments_iter, info = model.transcribe(
         str(audio_path),
         beam_size=5,
-        vad_filter=True,     # ajuda em ruído/silêncios
+        vad_filter=vad_filter,     # ajuda em ruÃ­do/silÃªncios
     )
 
     segments: List[Dict[str, Any]] = []
@@ -111,7 +111,7 @@ def whisper_transcribe(audio_path: Path) -> Dict[str, Any]:
     }
 
     logger.info(
-        "Transcrição concluída | idioma=%s | segmentos=%d | chars=%d | tempo=%.2fs",
+        "TranscriÃ§Ã£o concluÃ­da | idioma=%s | segmentos=%d | chars=%d | tempo=%.2fs",
         info.language,
         len(segments),
         len(full_text),
@@ -125,7 +125,8 @@ def whisper_transcribe(audio_path: Path) -> Dict[str, Any]:
 # CHANGELOG
 # ---------------------------------------------------------
 # 2026-01-23
-# - Ativada transcrição real com faster-whisper
+# - Ativada transcriÃ§Ã£o real com faster-whisper
 # - Modelo default: small (CPU, int8)
 # - Retorno estruturado (dict) mantido
 # - Logs de idioma, tempo e tamanho
+

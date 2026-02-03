@@ -8,6 +8,7 @@ import wave
 from datetime import datetime
 import threading
 import time
+import re
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -115,6 +116,11 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Ativa gravacao continua com chunks de N minutos.",
     )
+    parser.add_argument(
+        "--session-name",
+        default=None,
+        help="Nome opcional da sessao (usado no diretorio de saida).",
+    )
 
     return parser.parse_args()
 
@@ -133,10 +139,19 @@ def _run_chunk_mode(
     chunk_minutes: int,
     sample_rate: int,
     logger: logging.Logger,
+    session_name: Optional[str],
 ) -> int:
     chunk_seconds = max(chunk_minutes, 1) * 60
     session_stamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    session_dir = Path("output") / f"session_{session_stamp}"
+    safe_name = None
+    if session_name:
+        safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", session_name.strip())
+        safe_name = safe_name.strip("_") or None
+    if safe_name:
+        session_dir = Path("output") / f"session_{session_stamp}_{safe_name}"
+    else:
+        session_dir = Path("output") / f"session_{session_stamp}"
+    consolidated_path = session_dir / "transcricao_completa.txt"
 
     logger.info("Modo continuo ativado | chunk=%d min | session=%s", chunk_minutes, session_dir)
 
@@ -187,6 +202,11 @@ def _run_chunk_mode(
                 text_path.write_text(text, encoding="utf-8-sig")
                 logger.info("Transcricao salva em %s", text_path)
 
+                with consolidated_path.open("a", encoding="utf-8-sig") as consolidated_file:
+                    consolidated_file.write(f"--- Chunk {chunk_index:04d} ---\n")
+                    consolidated_file.write(text)
+                    consolidated_file.write("\n\n")
+
                 chunk_index += 1
     except KeyboardInterrupt:
         logger.info("Encerrando por interrupcao do usuario.")
@@ -218,7 +238,13 @@ def main() -> int:
     )
 
     if args.chunk_minutes:
-        return _run_chunk_mode(mic, args.chunk_minutes, args.sample_rate, logger)
+        return _run_chunk_mode(
+            mic,
+            args.chunk_minutes,
+            args.sample_rate,
+            logger,
+            args.session_name,
+        )
 
     logger.info("Gravando audio do microfone...")
     audio_bytes = _record_audio(mic, args.duration)
