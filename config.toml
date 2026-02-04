@@ -96,6 +96,7 @@ no_speech_threshold = 0.3
 logprob_threshold = -1.0
 temperature = 0.0
 condition_on_previous_text = false
+vad_filter = false
 
 
 # ==========================================================
@@ -106,7 +107,17 @@ condition_on_previous_text = false
 base_output = "output"
 audio_dir = "audio"
 transcripts_dir = "transcripts"
+summaries_dir = "summaries"
 markdown_dir = "md"
+vocab_path = "vocab.csv"
+
+# ==========================================================
+# QUALIDADE (NOVO — CONTROLE DE SINAL VERDE/VERMELHO)
+# ==========================================================
+[quality]
+min_wpm = 90
+max_wpm = 220
+min_words = 30
 
 
 # ==========================================================

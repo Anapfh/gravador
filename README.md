@@ -33,6 +33,8 @@ Permitir que o usuario:
 - Streamlit (app.py) para UI
 - Refiners deterministas (refiners/)
 - Summarizers governados (summarizers/ + core/summarizers/pipeline.py)
+- Pos-processamento com glossario (vocab.csv)
+- Relatorios de qualidade (output/quality)
 
 ---
 
@@ -57,10 +59,11 @@ streamlit run app.py
 ```
 
 ### 3) Resumo/Ata (pipeline governado)
-No Streamlit, selecione a sessao e o tipo de reuniao. O pipeline:
+No Streamlit, selecione o arquivo `transcricao_completa*.txt` e o tipo de reuniao. O pipeline:
 - aplica refinadores deterministas
 - injeta preambulo em memoria
 - gera o arquivo final (resumo/ata)
+- aplica correcoes do glossario (vocab.csv)
 
 ---
 

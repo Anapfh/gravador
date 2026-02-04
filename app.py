@@ -12,6 +12,7 @@ Etapa 2.1:
 """
 
 from pathlib import Path
+import re
 import json
 import logging
 import tomllib
@@ -21,6 +22,7 @@ import subprocess
 import sys
 import time
 import os
+import csv
 
 from core.recorder_streamlit import StreamlitRecorder
 from core.whisper_core import whisper_transcribe
@@ -58,9 +60,24 @@ config = load_config(CONFIG_PATH)
 BASE_OUTPUT = Path(config.get("paths", {}).get("base_output", "output"))
 AUDIO_DIR = BASE_OUTPUT / "audio"
 TRANSCRIPT_DIR = BASE_OUTPUT / "transcripts"
+SUMMARY_DIR = BASE_OUTPUT / "summaries"
+QUALITY_DIR = BASE_OUTPUT / "quality"
+VOCAB_PATH = Path(config.get("paths", {}).get("vocab_path", "vocab.csv"))
 
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
+QUALITY_DIR.mkdir(parents=True, exist_ok=True)
+
+# =====================================================
+# TRANSCRIPTION SETTINGS
+# =====================================================
+WHISPER_CFG = config.get("transcription", {}).get("whisper", {})
+VAD_FILTER_DEFAULT = WHISPER_CFG.get("vad_filter", False)
+QUALITY_CFG = config.get("quality", {})
+MIN_WPM = float(QUALITY_CFG.get("min_wpm", 90))
+MAX_WPM = float(QUALITY_CFG.get("max_wpm", 220))
+MIN_WORDS = int(QUALITY_CFG.get("min_words", 30))
 
 # =====================================================
 # SESSION STATE
@@ -121,16 +138,6 @@ def open_file(path: Path):
         subprocess.Popen(["xdg-open", path])
 
 
-def list_session_dirs(base_dir: Path) -> list[Path]:
-    if not base_dir.exists():
-        return []
-    return sorted(
-        [p for p in base_dir.iterdir() if p.is_dir() and p.name.startswith("session_")],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-
-
 def get_latest_file(directory: Path, pattern: str) -> Path | None:
     if not directory.exists():
         return None
@@ -146,6 +153,118 @@ def _should_retry_without_vad(duration: float | None, raw_text: str) -> bool:
     chars = len(raw_text)
     words = len(raw_text.split())
     return chars < duration * 5 or words < duration * 0.6
+
+
+def _compute_wpm(duration: float | None, words: int) -> float | None:
+    if not duration or duration <= 0:
+        return None
+    minutes = duration / 60.0
+    if minutes <= 0:
+        return None
+    return round(words / minutes, 2)
+
+
+def _slugify(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", name.strip())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or "arquivo"
+
+
+def _ensure_vocab_file() -> None:
+    if VOCAB_PATH.exists():
+        return
+    with VOCAB_PATH.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["source", "target"])
+
+
+def _append_vocab_entry(source: str, target: str) -> None:
+    _ensure_vocab_file()
+    with VOCAB_PATH.open("a", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([source, target])
+
+
+def _load_vocab_entries() -> list[tuple[str, str]]:
+    if not VOCAB_PATH.exists():
+        return []
+    entries: list[tuple[str, str]] = []
+    with VOCAB_PATH.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row or len(row) < 2:
+                continue
+            source, target = row[0].strip(), row[1].strip()
+            if not source or source.lower() == "source":
+                continue
+            entries.append((source, target))
+    return entries
+
+
+def _save_vocab_entries(entries: list[tuple[str, str]]) -> None:
+    _ensure_vocab_file()
+    with VOCAB_PATH.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["source", "target"])
+        for source, target in entries:
+            writer.writerow([source, target])
+
+
+def _assess_quality(duration: float | None, words: int, wpm: float | None) -> dict:
+    status = "ok"
+    reasons = []
+    if words < MIN_WORDS:
+        status = "warn"
+        reasons.append(f"poucas_palavras<{MIN_WORDS}")
+    if wpm is None:
+        status = "warn"
+        reasons.append("wpm_indisponivel")
+    else:
+        if wpm < MIN_WPM:
+            status = "warn"
+            reasons.append(f"wpm_baixo<{MIN_WPM}")
+        if wpm > MAX_WPM:
+            status = "warn"
+            reasons.append(f"wpm_alto>{MAX_WPM}")
+    return {"status": status, "reasons": reasons}
+
+
+def _append_quality_report(payload: dict) -> None:
+    jsonl_path = QUALITY_DIR / "quality_reports.jsonl"
+    csv_path = QUALITY_DIR / "quality_reports.csv"
+
+    # JSONL
+    with open(jsonl_path, "a", encoding="utf-8") as jf:
+        jf.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    # CSV (write header if needed)
+    header = [
+        "timestamp",
+        "audio",
+        "transcript",
+        "duration_s",
+        "words",
+        "wpm",
+        "status",
+        "reasons",
+        "mode",
+    ]
+    write_header = not csv_path.exists()
+    with open(csv_path, "a", encoding="utf-8") as cf:
+        if write_header:
+            cf.write(",".join(header) + "\n")
+        row = [
+            str(payload.get("timestamp", "")),
+            str(payload.get("audio", "")),
+            str(payload.get("transcript", "")),
+            str(payload.get("duration_s", "")),
+            str(payload.get("words", "")),
+            str(payload.get("wpm", "")),
+            str(payload.get("status", "")),
+            "|".join(payload.get("reasons", [])),
+            str(payload.get("mode", "")),
+        ]
+        cf.write(",".join(row) + "\n")
 
 # =====================================================
 # UI — TITULO
@@ -291,13 +410,14 @@ if latest_wav:
         with st.spinner("Transcrevendo audio gravado..."):
             audio_path = st.session_state.audio_path
 
-            result = whisper_transcribe(audio_path)
+            result = whisper_transcribe(audio_path, vad_filter=VAD_FILTER_DEFAULT)
             raw_text = result.get("text", "").strip()
             duration = get_audio_duration_seconds(audio_path)
-            if _should_retry_without_vad(duration, raw_text):
+            if VAD_FILTER_DEFAULT and _should_retry_without_vad(duration, raw_text):
                 logger.warning("Transcricao curta detectada | retry sem VAD")
                 result = whisper_transcribe(audio_path, vad_filter=False)
                 raw_text = result.get("text", "").strip()
+            result["audio_duration_s"] = duration
 
             refined_text = refine_structural(raw_text)
 
@@ -305,20 +425,38 @@ if latest_wav:
             raw_txt = TRANSCRIPT_DIR / f"{audio_path.stem}.raw.txt"
             jsn = TRANSCRIPT_DIR / f"{audio_path.stem}.json"
 
-            txt.write_text(refined_text, encoding="utf-8")
-            raw_txt.write_text(raw_text, encoding="utf-8")
+            txt.write_text(refined_text, encoding="utf-8-sig")
+            raw_txt.write_text(raw_text, encoding="utf-8-sig")
             jsn.write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),
-                encoding="utf-8",
+                encoding="utf-8-sig",
             )
             st.session_state.last_transcript_path = txt
 
             words = len(refined_text.split())
+            wpm = _compute_wpm(duration, words)
+            quality = _assess_quality(duration, words, wpm)
+
+            _append_quality_report(
+                {
+                    "timestamp": int(time.time()),
+                    "audio": audio_path.name,
+                    "transcript": txt.name,
+                    "duration_s": duration,
+                    "words": words,
+                    "wpm": wpm,
+                    "status": quality["status"],
+                    "reasons": quality["reasons"],
+                    "mode": "recording",
+                }
+            )
 
             st.session_state.transcript_text = refined_text
             st.session_state.stats = {
                 "duration": duration,
                 "words": words,
+                "wpm": wpm,
+                "quality": quality,
             }
         st.success("Transcricao finalizada")
         if st.session_state.last_transcript_path:
@@ -355,14 +493,15 @@ if uploaded_file:
 
             logger.info("Transcricao manual iniciada | %s", temp_audio)
 
-            result = whisper_transcribe(temp_audio)
+            result = whisper_transcribe(temp_audio, vad_filter=VAD_FILTER_DEFAULT)
             raw_text = result.get("text", "").strip()
 
             duration = get_audio_duration_seconds(temp_audio)
-            if _should_retry_without_vad(duration, raw_text):
+            if VAD_FILTER_DEFAULT and _should_retry_without_vad(duration, raw_text):
                 logger.warning("Transcricao curta detectada | retry sem VAD")
                 result = whisper_transcribe(temp_audio, vad_filter=False)
                 raw_text = result.get("text", "").strip()
+            result["audio_duration_s"] = duration
 
             refined_text = refine_structural(raw_text)
 
@@ -370,21 +509,39 @@ if uploaded_file:
             raw_txt = TRANSCRIPT_DIR / f"{temp_audio.stem}.raw.txt"
             jsn = TRANSCRIPT_DIR / f"{temp_audio.stem}.json"
 
-            txt.write_text(refined_text, encoding="utf-8")
-            raw_txt.write_text(raw_text, encoding="utf-8")
+            txt.write_text(refined_text, encoding="utf-8-sig")
+            raw_txt.write_text(raw_text, encoding="utf-8-sig")
             jsn.write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),
-                encoding="utf-8",
+                encoding="utf-8-sig",
             )
             st.session_state.last_transcript_path = txt
 
             duration = get_audio_duration_seconds(temp_audio)
             words = len(refined_text.split())
+            wpm = _compute_wpm(duration, words)
+            quality = _assess_quality(duration, words, wpm)
+
+            _append_quality_report(
+                {
+                    "timestamp": int(time.time()),
+                    "audio": temp_audio.name,
+                    "transcript": txt.name,
+                    "duration_s": duration,
+                    "words": words,
+                    "wpm": wpm,
+                    "status": quality["status"],
+                    "reasons": quality["reasons"],
+                    "mode": "upload",
+                }
+            )
 
             st.session_state.external_transcript = refined_text
             st.session_state.external_stats = {
                 "duration": duration,
                 "words": words,
+                "wpm": wpm,
+                "quality": quality,
             }
         st.success("Transcricao concluida")
         if st.session_state.last_transcript_path:
@@ -411,6 +568,15 @@ if st.session_state.external_transcript:
         col1.caption("Duracao indisponivel para este formato")
 
     col2.metric("Palavras", st.session_state.external_stats["words"])
+    if st.session_state.external_stats.get("wpm") is not None:
+        col2.metric("Palavras/min", st.session_state.external_stats["wpm"])
+    quality = st.session_state.external_stats.get("quality") or {}
+    if quality.get("status") == "warn":
+        st.warning(
+            "Qualidade em alerta: "
+            + ", ".join(quality.get("reasons", []))
+            + " | verifique o audio/transcricao."
+        )
 
     st.text_area(
         "Texto transcrito",
@@ -431,44 +597,87 @@ st.divider()
 # =====================================================
 st.subheader("Resumo / Ata (transcricao consolidada)")
 
-session_dirs = list_session_dirs(BASE_OUTPUT)
-session_labels = [p.name for p in session_dirs]
+with st.expander("Glossario (pos-processamento)", expanded=False):
+    st.caption("Adicione termos para correção automática nos próximos resumos.")
+    vocab_col1, vocab_col2 = st.columns(2)
+    with vocab_col1:
+        vocab_source = st.text_input("Termo errado", value="")
+    with vocab_col2:
+        vocab_target = st.text_input("Correcao", value="")
+    if st.button("Adicionar ao glossario"):
+        if not vocab_source.strip() or not vocab_target.strip():
+            st.error("Preencha os dois campos.")
+        else:
+            _append_vocab_entry(vocab_source.strip(), vocab_target.strip())
+            st.success("Termo adicionado ao glossario.")
+
+    st.divider()
+    entries = _load_vocab_entries()
+    st.caption(f"Lista atual do glossario ({len(entries)} termos)")
+    if not entries:
+        st.info("Glossario vazio.")
+    else:
+        options = [f"{s} -> {t}" for s, t in entries]
+        selected = st.selectbox("Selecionar entrada", options=options, index=None)
+
+        action_col1, action_col2 = st.columns(2)
+        with action_col1:
+            if st.button("Remover selecionado"):
+                if selected:
+                    idx = options.index(selected)
+                    entries.pop(idx)
+                    _save_vocab_entries(entries)
+                    st.success("Entrada removida do glossario.")
+                else:
+                    st.error("Selecione uma entrada para remover.")
+        with action_col2:
+            confirm_clear = st.checkbox("Confirmar limpeza total", value=False)
+            if st.button("Limpar tudo"):
+                if not confirm_clear:
+                    st.error("Confirme a limpeza total antes de prosseguir.")
+                else:
+                    _save_vocab_entries([])
+                    st.success("Glossario limpo.")
+
+        st.divider()
+        st.caption("Editar entrada")
+        if selected:
+            idx = options.index(selected)
+            current_source, current_target = entries[idx]
+            edit_col1, edit_col2 = st.columns(2)
+            with edit_col1:
+                edit_source = st.text_input(
+                    "Termo errado (editar)",
+                    value=current_source,
+                    key="edit_source",
+                )
+            with edit_col2:
+                edit_target = st.text_input(
+                    "Correcao (editar)",
+                    value=current_target,
+                    key="edit_target",
+                )
+            if st.button("Salvar edicao"):
+                if not edit_source.strip() or not edit_target.strip():
+                    st.error("Preencha os dois campos.")
+                else:
+                    entries[idx] = (edit_source.strip(), edit_target.strip())
+                    _save_vocab_entries(entries)
+                    st.success("Entrada atualizada.")
+        else:
+            st.caption("Selecione uma entrada para editar.")
 
 source_mode = st.radio(
     "Origem da transcricao consolidada",
-    options=["Ultima sessao (output/)", "Escolher outra sessao", "Selecionar arquivo (Browse)"],
+    options=["Selecionar arquivo (Browse)"],
     index=0,
     horizontal=True,
 )
 
-selected_session = None
-uploaded_transcript = None
-manual_session_dir = None
-
-if source_mode == "Ultima sessao (output/)":
-    selected_session = session_labels[0] if session_labels else None
-    if selected_session:
-        st.caption(f"Selecionada automaticamente: {selected_session}")
-    else:
-        st.caption("Nenhuma sessao encontrada em output/")
-elif source_mode == "Escolher outra sessao":
-    selected_session = st.selectbox(
-        "Sessao com transcricao consolidada",
-        options=session_labels,
-        index=0 if session_labels else None,
-    )
-else:
-    uploaded_transcript = st.file_uploader(
-        "Selecione o arquivo transcricao_completa.txt",
-        type=["txt"],
-    )
-
-if selected_session:
-    st.button(
-        "Abrir pasta da sessao selecionada",
-        on_click=open_folder,
-        args=(BASE_OUTPUT / selected_session,),
-    )
+uploaded_transcript = st.file_uploader(
+    "Selecione o arquivo transcricao_completa.txt",
+    type=["txt"],
+)
 
 meeting_type = st.selectbox(
     "Tipo de reuniao",
@@ -488,38 +697,31 @@ meeting_type = st.selectbox(
 )
 
 if st.button("Gerar resumo/ata"):
-    if source_mode == "Selecionar arquivo (Browse)":
-        if not uploaded_transcript:
-            st.error("Selecione um arquivo transcricao_completa.txt.")
-        else:
-            manual_session_dir = BASE_OUTPUT / f"manual_session_{int(time.time())}"
-            manual_session_dir.mkdir(parents=True, exist_ok=True)
-            target_path = manual_session_dir / "transcricao_completa.txt"
-            target_path.write_bytes(uploaded_transcript.read())
-            with st.spinner("Gerando resumo/ata..."):
-                try:
-                    output_path = run_summary_pipeline(manual_session_dir, meeting_type)
-                    st.session_state.summary_output = output_path
-                    st.success(f"Resumo gerado: {output_path.name}")
-                    st.button(
-                        "Abrir pasta da sessao (manual)",
-                        on_click=open_folder,
-                        args=(manual_session_dir,),
-                    )
-                except Exception as exc:
-                    st.error(f"Falha ao gerar resumo/ata: {exc}")
+    if not uploaded_transcript:
+        st.error("Selecione um arquivo transcricao_completa.txt.")
     else:
-        if not selected_session:
-            st.error("Nenhuma sessao encontrada em output/")
-        else:
-            session_dir = BASE_OUTPUT / selected_session
-            with st.spinner("Gerando resumo/ata..."):
-                try:
-                    output_path = run_summary_pipeline(session_dir, meeting_type)
-                    st.session_state.summary_output = output_path
-                    st.success(f"Resumo gerado: {output_path.name}")
-                except Exception as exc:
-                    st.error(f"Falha ao gerar resumo/ata: {exc}")
+        safe_name = _slugify(Path(uploaded_transcript.name).stem)
+        manual_session_dir = (
+            BASE_OUTPUT
+            / "transcripts"
+            / "manual_sessions"
+            / f"manual_session_{safe_name}_{int(time.time())}"
+        )
+        manual_session_dir.mkdir(parents=True, exist_ok=True)
+        target_path = manual_session_dir / f"transcricao_completa_{safe_name}.txt"
+        target_path.write_bytes(uploaded_transcript.read())
+        with st.spinner("Gerando resumo/ata..."):
+            try:
+                output_path = run_summary_pipeline(manual_session_dir, meeting_type)
+                st.session_state.summary_output = output_path
+                st.success(f"Resumo gerado: {output_path.name}")
+                st.button(
+                    "Abrir pasta da sessao (manual)",
+                    on_click=open_folder,
+                    args=(manual_session_dir,),
+                )
+            except Exception as exc:
+                st.error(f"Falha ao gerar resumo/ata: {exc}")
 
 if st.session_state.summary_output:
     st.button(

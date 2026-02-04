@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import csv
 import sys
 from pathlib import Path
 from typing import Callable, Dict, Any
@@ -48,6 +50,12 @@ _OUTPUT_MAP = {
     "treinamento": "resumo_treinamento.md",
 }
 
+_POSTPROCESS_REPLACEMENTS = [
+    (r"\bRe-envolver\b", "Handover (transferência)"),
+    (r"\bre-envolver\b", "handover (transferência)"),
+    (r"\bsubmetos\b", "suprimentos"),
+]
+
 
 def _load_config() -> Dict[str, Any]:
     config_path = PROJECT_ROOT / "config.toml"
@@ -56,11 +64,48 @@ def _load_config() -> Dict[str, Any]:
     return tomllib.loads(config_path.read_text(encoding="utf-8"))
 
 
+def _resolve_summaries_dir(cfg: Dict[str, Any]) -> Path:
+    paths_cfg = cfg.get("paths", {})
+    base_output = paths_cfg.get("base_output", "output")
+    summaries_dir = paths_cfg.get("summaries_dir", "summaries")
+    return PROJECT_ROOT / base_output / summaries_dir
+
+
 def _load_transcription(session_dir: Path) -> str:
     transcription_path = session_dir / "transcricao_completa.txt"
-    if not transcription_path.exists():
+    if transcription_path.exists():
+        return transcription_path.read_text(encoding="utf-8-sig")
+
+    # Fallback: aceita arquivo nomeado com referencia ao audio/base
+    candidates = sorted(
+        session_dir.glob("transcricao_completa*.txt"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
         raise FileNotFoundError(f"Transcricao nao encontrada: {transcription_path}")
-    return transcription_path.read_text(encoding="utf-8-sig")
+    return candidates[0].read_text(encoding="utf-8-sig")
+
+
+def _resolve_summary_base_name(session_dir: Path) -> str:
+    candidates = sorted(
+        session_dir.glob("transcricao_completa*.txt"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if candidates:
+        stem = candidates[0].stem
+        if stem.startswith("transcricao_completa_"):
+            base = stem.replace("transcricao_completa_", "", 1)
+        else:
+            base = stem
+    else:
+        base = session_dir.name
+        if base.startswith("manual_session_"):
+            base = base.replace("manual_session_", "", 1)
+
+    base = base.strip().replace(" ", "_")
+    return base or "resumo"
 
 
 def _load_preamble(meeting_type: str) -> str:
@@ -90,6 +135,43 @@ def _apply_refiners(text: str, cfg: Dict[str, Any]) -> str:
     refined = cut_hallucinated_tail(refined, cleaning_cfg)
 
     return refined
+
+
+def _load_vocab(cfg: Dict[str, Any]) -> list[tuple[str, str]]:
+    vocab_path = cfg.get("paths", {}).get("vocab_path", "vocab.csv")
+    path = (PROJECT_ROOT / vocab_path).resolve()
+    if not path.exists():
+        return []
+    rows: list[tuple[str, str]] = []
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row or len(row) < 2:
+                continue
+            source, target = row[0].strip(), row[1].strip()
+            if not source or source.lower() == "source":
+                continue
+            if target:
+                rows.append((source, target))
+    return rows
+
+
+def _apply_vocab(text: str, vocab: list[tuple[str, str]]) -> str:
+    adjusted = text
+    for source, target in vocab:
+        pattern = r"\b" + re.escape(source) + r"\b"
+        adjusted = re.sub(pattern, target, adjusted)
+    return adjusted
+
+
+def _postprocess_summary(text: str, cfg: Dict[str, Any]) -> str:
+    adjusted = text
+    vocab = _load_vocab(cfg)
+    if vocab:
+        adjusted = _apply_vocab(adjusted, vocab)
+    for pattern, replacement in _POSTPROCESS_REPLACEMENTS:
+        adjusted = re.sub(pattern, replacement, adjusted)
+    return adjusted
 
 
 def _summarize_daily(
@@ -164,8 +246,14 @@ def run_summary_pipeline(
             llm_callable=summarize_with_ollama,
         )
 
+    result = _postprocess_summary(result, cfg)
+
     output_name = _OUTPUT_MAP[meeting_type]
-    output_path = session_dir / output_name
+    output_dir = _resolve_summaries_dir(cfg)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    base_name = _resolve_summary_base_name(session_dir)
+    output_filename = f"{base_name}_{output_name}"
+    output_path = output_dir / output_filename
     output_path.write_text(result, encoding="utf-8-sig")
     logger.info("Resumo/ata gerado em %s", output_path)
     return output_path

@@ -63,6 +63,11 @@ output/
 * `output/transcripts/` → transcrições textuais
 * `output/summaries/` → resumos
 * `output/md/` → versões em Markdown
+* `output/quality/` → relatórios de qualidade (WPM)
+
+### Arquivos de configuração relevantes
+
+* `vocab.csv` → glossário de correções aplicadas no pós-processamento
 
 ---
 
@@ -73,6 +78,7 @@ output/
 * Disparo da transcrição
 * Leitura e exibição dos arquivos gerados em `output/`
 * Visualização de logs e status
+* Gestão do glossário (adicionar/editar/remover termos)
 
 ---
 
