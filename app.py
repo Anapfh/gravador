@@ -139,6 +139,14 @@ def get_latest_file(directory: Path, pattern: str) -> Path | None:
         return None
     return max(files, key=lambda p: p.stat().st_mtime)
 
+
+def _should_retry_without_vad(duration: float | None, raw_text: str) -> bool:
+    if not duration or duration <= 30:
+        return False
+    chars = len(raw_text)
+    words = len(raw_text.split())
+    return chars < duration * 5 or words < duration * 0.6
+
 # =====================================================
 # UI — TITULO
 # =====================================================
@@ -176,11 +184,7 @@ def _start_recording():
 def _pause_recording():
     recorder_local = st.session_state.get("recorder")
     if recorder_local and recorder_local.is_running():
-        recorder_local.stop()
-        st.session_state.audio_path = recorder_local.final_audio_path
-        if recorder_local.final_audio_path:
-            st.session_state.recorded_files.append(recorder_local.final_audio_path)
-        st.session_state.recorder = None
+        recorder_local.pause()
         if st.session_state.rec_start_ts:
             st.session_state.rec_elapsed_total += max(
                 0.0, time.time() - st.session_state.rec_start_ts
@@ -189,21 +193,20 @@ def _pause_recording():
         st.session_state.rec_status = "paused"
         st.session_state.rec_paused = True
         _mark_action()
-        status_box.info("Gravacao pausada (arquivo atual finalizado)")
+        status_box.info("Gravacao pausada (gap zero)")
 
 
 def _resume_recording():
-    recorder_local = StreamlitRecorder(
-        output_dir=AUDIO_DIR,
-        base_name=filename,
-    )
-    recorder_local.start()
-    st.session_state.recorder = recorder_local
-    st.session_state.rec_status = "recording"
-    st.session_state.rec_start_ts = time.time()
-    st.session_state.rec_paused = False
-    _mark_action()
-    status_box.success("Gravacao retomada")
+    recorder_local = st.session_state.get("recorder")
+    if recorder_local and recorder_local.is_running():
+        recorder_local.resume()
+        st.session_state.rec_status = "recording"
+        st.session_state.rec_start_ts = time.time()
+        st.session_state.rec_paused = False
+        _mark_action()
+        status_box.success("Gravacao retomada")
+    else:
+        status_box.warning("Nao foi possivel retomar (gravacao nao ativa)")
 
 
 def _finalize_recording():
@@ -227,14 +230,15 @@ def _finalize_recording():
 
 recorder = st.session_state.get("recorder")
 is_running = recorder is not None and recorder.is_running()
-is_paused = bool(st.session_state.rec_paused)
+is_paused = recorder is not None and recorder.is_paused()
+st.session_state.rec_paused = is_paused
 is_idle = not is_running and not is_paused
 
 time_since_action = time.time() - st.session_state.rec_last_action_ts
-if is_running:
-    st.session_state.rec_status = "recording"
-elif is_paused:
+if is_paused:
     st.session_state.rec_status = "paused"
+elif is_running:
+    st.session_state.rec_status = "recording"
 elif time_since_action < 2.0 and st.session_state.rec_status == "recording":
     # evita flicker logo apos iniciar
     st.session_state.rec_status = "recording"
@@ -289,6 +293,11 @@ if latest_wav:
 
             result = whisper_transcribe(audio_path)
             raw_text = result.get("text", "").strip()
+            duration = get_audio_duration_seconds(audio_path)
+            if _should_retry_without_vad(duration, raw_text):
+                logger.warning("Transcricao curta detectada | retry sem VAD")
+                result = whisper_transcribe(audio_path, vad_filter=False)
+                raw_text = result.get("text", "").strip()
 
             refined_text = refine_structural(raw_text)
 
@@ -304,7 +313,6 @@ if latest_wav:
             )
             st.session_state.last_transcript_path = txt
 
-            duration = get_audio_duration_seconds(audio_path)
             words = len(refined_text.split())
 
             st.session_state.transcript_text = refined_text
@@ -351,7 +359,7 @@ if uploaded_file:
             raw_text = result.get("text", "").strip()
 
             duration = get_audio_duration_seconds(temp_audio)
-            if duration and duration > 30 and len(raw_text) < 80:
+            if _should_retry_without_vad(duration, raw_text):
                 logger.warning("Transcricao curta detectada | retry sem VAD")
                 result = whisper_transcribe(temp_audio, vad_filter=False)
                 raw_text = result.get("text", "").strip()

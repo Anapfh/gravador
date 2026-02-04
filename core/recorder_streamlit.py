@@ -19,12 +19,14 @@ class StreamlitRecorder:
 
         self._thread = None
         self._stop_event = threading.Event()
+        self._pause_event = threading.Event()
 
     def _run(self):
         self.final_audio_path = record_until_stop(
             self.output_dir,
             self.base_name,
             self._stop_event,
+            pause_event=self._pause_event,
             show_timer=False,
         )
         logger.info("Gravação concluída | path=%s", self.final_audio_path)
@@ -35,6 +37,7 @@ class StreamlitRecorder:
             return
 
         self._stop_event.clear()
+        self._pause_event.clear()
 
         self._thread = threading.Thread(
             target=self._run,
@@ -43,6 +46,22 @@ class StreamlitRecorder:
         self._thread.start()
 
         logger.info("Thread de gravação iniciada")
+
+    def pause(self):
+        if not self.is_running():
+            logger.warning("Pause chamado sem gravação ativa")
+            return
+        if not self._pause_event.is_set():
+            self._pause_event.set()
+            logger.info("Gravação pausada (gap zero)")
+
+    def resume(self):
+        if not self.is_running():
+            logger.warning("Resume chamado sem gravação ativa")
+            return
+        if self._pause_event.is_set():
+            self._pause_event.clear()
+            logger.info("Gravação retomada")
 
     def stop(self):
         if not self.is_running():
@@ -56,6 +75,10 @@ class StreamlitRecorder:
             self._thread.join(timeout=10)
         if self._thread and not self._thread.is_alive():
             self._thread = None
+        self._pause_event.clear()
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
+
+    def is_paused(self) -> bool:
+        return self._pause_event.is_set()

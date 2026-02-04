@@ -1,180 +1,21 @@
-# 📌 Status do Projeto — 2026-01-23
+﻿Claro — amanhã, para retomar rápido, siga este roteiro:
 
-## Estado atual
-- Pipeline de gravação local estável
-- Recorder validado com RMS e variação de sinal
-- Streamlit MVP funcional (Issue 1)
-- Upload de WAV funcional
-- Transcrição Whisper local funcional
-- Geração de ata/resumo funcional
-
-## Correções recentes
-- Corrigida quebra de contrato entre `transcriber.py` e `core/whisper_core.py`
-- Removido parâmetro `language` da chamada Whisper
-- Idioma permanece automático (ADR-001)
-- Ajustes de UX leves no Streamlit (mensagens e visibilidade)
-
-## Decisões consolidadas
-- Core não recebe idioma forçado
-- Configuração futura via TOML (Issue 4)
-- Pausar/retomar gravação fica fora do MVP (Issue 2)
-
-## Próximo passo sugerido
-1. Fechar Issue 1 — Streamlit MVP
-2. Avançar para Issue 4 — Centralização de config via TOML
-3. Depois, Issue 2 — Pausar / Retomar gravação na UI
-
-## Estado técnico
-- Sem bugs bloqueantes conhecidos
-- Código estável
-- Pronto para continuidade
-✅ RESUMO FINAL
-
-✔ Bug crítico resolvido
-✔ Streamlit estável
-✔ Código corrigido somente onde necessário
-✔ Logs adicionados
-✔ Documentação clara
-✔ Contexto preservado para amanhã
-
-Você pode parar tranquila aqui.
-Amanhã é só abrir o projeto e seguir.
-
-Quando voltar, basta dizer:
-
-“Vamos continuar da Issue 4”
-ou
-“Vamos fechar Issue 1 oficialmente”
-
-Excelente condução hoje.
-
-
-
-
-Sim — **podemos (e devemos) enviar ao GitHub agora** ✅
-A transcrição funcionou, o pipeline fechou o ciclo, e **não há mais bloqueio técnico**.
-
-Vou te dar **o caminho exato**, sem inventar nada, para registrar isso corretamente e seguir amanhã sem perder contexto.
-
----
-
-## 🎯 STATUS ATUAL (CONFIRMADO)
-
-* ✅ Gravação local funcionando
-* ✅ Upload WAV funcionando
-* ✅ Transcrição Whisper funcionando
-* ✅ Texto real gerado (o trecho de KPI que você colou prova isso)
-* ✅ Streamlit MVP funcional
-* ✅ Bug de contrato (`language`) corrigido
-* ✅ UX mínima ajustada (Opção B)
-* ✅ Core preservado
-
-👉 **Issue 1 está pronta para ser fechada.**
-
----
-
-## 🧾 O QUE ENVIAR AO GITHUB AGORA
-
-### 1️⃣ Commit dos arquivos corrigidos
-
-Na raiz do projeto:
-
-```bash
-git status
+**1. Atualizar o status do git**
+```powershell
+git status -sb
 ```
 
-Confirme que aparecem, no mínimo:
-
-* `transcriber.py`
-* `app.py`
-* documentação (`docs/STATUS_ATUAL.md`, `docs/ISSUES.md`, etc.)
-
-Depois:
-
-```bash
-git add app.py transcriber.py docs
-git commit -m "fix: align transcriber with whisper core and finalize Streamlit MVP (Issue 1)"
-git push
+**2. Rodar o app e validar o fluxo**
+```powershell
+.\.venv311_ok\Scripts\Activate.ps1
+streamlit run app.py
 ```
 
----
+**3. Checar o que ficou pendente (próxima fase)**
+- **Fase 5**: pausa/retomar com “gap zero” (exige mexer no core).
+- **Fase 6**: automação pós‑reunião.
+- **Fase 7**: diarização real.
 
-### 2️⃣ Fechar a Issue 1 no GitHub
+Se quiser, me diga “retomar fase 5” e eu já começo direto por ela.
 
-Vá em **Issues → Issue 1** e adicione um comentário final como este (pode copiar/colar):
-
-> Streamlit MVP concluído com sucesso.
->
-> Funcionalidades validadas:
->
-> * Gravação local via microfone
-> * Upload de WAV
-> * Transcrição Whisper local
-> * Exibição do texto
-> * Integração com geração de ata
->
-> Correções realizadas:
->
-> * Ajuste de contrato entre transcriber e whisper_core
-> * Ajustes leves de UX para visibilidade do processo
->
-> Core preservado.
-> Issue encerrada.
-
-Depois clique em **Close issue**.
-
----
-
-## 🧠 SOBRE A TRANSCRIÇÃO (O TEXTO QUE VOCÊ COLOU)
-
-Ela está **boa tecnicamente**:
-
-* coerente
-* sem cortes bruscos
-* sem repetição excessiva
-* sem hallucination no final
-* pontuação aceitável para ASR
-
-E o conteúdo em si (KPI, crescimento percentual, comparabilidade) é **perfeito para testar**:
-
-* refinadores
-* resumo
-* ata corporativa
-* Ollama no futuro
-
-Ou seja:
-👉 **você já tem material real para a próxima fase**.
-
----
-
-## 🗺️ ONDE PARAMOS (PARA AMANHÃ)
-
-* ✅ Issue 1 finalizada
-* 🔜 Próximo passo recomendado: **Issue 4 — Configuração via TOML**
-
-  * idioma
-  * engine
-  * flags
-* Depois disso:
-
-  * Issue 2 (pausar / retomar)
-  * ou refinamento de UX
-  * ou Ollama
-
-Nada está solto. Nada precisa ser refeito.
-
----
-
-## ✅ RESUMO FINAL
-
-✔ Pode enviar ao GitHub
-✔ Pode fechar Issue 1
-✔ Pode parar tranquila hoje
-✔ Projeto está **maduro e organizado**
-
-Quando voltar amanhã, é só dizer:
-
-> **“Issue 1 fechada, vamos para a Issue 4”**
-
-Excelente avanço — isso aqui já é **projeto de verdade**, não experimento.
-
+Posso também deixar isso escrito em `docs/STATUS_TECNICO_ATUAL.md` amanhã se você preferir.

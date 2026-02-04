@@ -45,7 +45,7 @@ Objetivo:
 2. Atas e highlights de reunioes.
 3. Opcional integracao com modelos locais.
 
-## Fase 5 (pendente final): pausa/retomar com "gap zero"
+## Fase 5 (concluida): pausa/retomar com "gap zero"
 
 Objetivo:
 1. Implementar pausa real sem criar novos arquivos.

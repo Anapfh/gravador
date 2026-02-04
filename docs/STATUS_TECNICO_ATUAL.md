@@ -141,12 +141,13 @@ Se qualquer um ocorrer:
 Resumo:
 - CLI continuo com chunking, pause/resume e transcricao consolidada.
 - Streamlit com UX atualizado (status, tempo, pausa/retomar por arquivos).
+- Streamlit com pausa/retomar "gap zero" no mesmo WAV.
 - Pipeline governado de resumo/ata com refinadores e preambulos em memoria.
 - Preambulos ampliados e catalogados em docs/PREAMBLES.md.
 - README e roadmap atualizados.
 
-Proxima fase (pendente final):
-- Pausa/retomar com "gap zero" (exige ajuste no core de gravacao).
+Proxima fase:
+- Fase 6: automacao pos-reuniao.
 
 Futuro:
 - Fase 6: automacao pos-reuniao.

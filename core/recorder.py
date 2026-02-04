@@ -93,6 +93,7 @@ def record_until_stop(
     output_dir: Path,
     base_name: str,
     stop_event: Optional[threading.Event] = None,
+    pause_event: Optional[threading.Event] = None,
     show_timer: bool = True,
 ) -> Path:
     """
@@ -121,10 +122,15 @@ def record_until_stop(
     def callback(indata, _frames, _time, status):
         if status:
             logger.warning("Status de captura: %s", status)
+        if pause_event is not None and pause_event.is_set():
+            return
         frames.append(indata.copy())
 
     def timer(start_time: float):
         while not internal_stop.is_set():
+            if pause_event is not None and pause_event.is_set():
+                time.sleep(0.2)
+                continue
             elapsed = int(time.time() - start_time)
             print(
                 f"\r🎙️ Gravando... {elapsed//60:02d}:{elapsed%60:02d}",
